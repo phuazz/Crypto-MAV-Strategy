@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto 50W/200W MAV Strategy Backtest</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>if(typeof Chart==='undefined'){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>')}</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --bg:#fff;--bg2:#f8f9fb;--bg3:#f0f2f5;
+  --card:#fff;--card-h:#fcfcfd;
+  --bdr:#e4e7ed;--bdr-l:#f0f1f4;
+  --tx:#1a1d26;--tx2:#5a6070;--tx3:#9098a8;
+  --bull:#0d9668;--bull-bg:rgba(13,150,104,.07);
+  --bear:#d63031;--bear-bg:rgba(214,48,49,.07);
+  --gold:#d48806;--gold-bg:rgba(212,136,6,.07);
+  --blue:#2563eb;--blue-bg:rgba(37,99,235,.07);
+  --purple:#7c3aed;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg2);color:var(--tx);min-height:100vh}
+.mono{font-family:'IBM Plex Mono',monospace}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px}
+
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding:20px 0;border-bottom:2px solid var(--tx);margin-bottom:24px}
+.hdr h1{font-size:20px;font-weight:700;letter-spacing:-.5px}
+.hdr .sub{font-size:12px;color:var(--tx2);margin-top:2px}
+.hdr .meta{text-align:right;font-size:11px;color:var(--tx3)}
+
+/* Asset tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg3);padding:3px;border-radius:8px;width:fit-content}
+.tab{padding:8px 20px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;color:var(--tx2);border:none;background:none}
+.tab:hover{color:var(--tx)}
+.tab.active{background:var(--card);color:var(--tx);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+/* Controls */
+.ctrls{display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.ctrls label{font-size:12px;font-weight:500;color:var(--tx2)}
+.ctrls select,.ctrls input{background:var(--card);border:1px solid var(--bdr);color:var(--tx);padding:6px 10px;border-radius:6px;font-size:12px;font-family:'IBM Plex Mono',monospace}
+.btn{background:var(--tx);color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.btn:hover{opacity:.85}
+.btn-outline{background:none;color:var(--tx);border:1.5px solid var(--bdr);padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer}
+
+/* KPI grid */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.kpi-l{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--tx3);font-weight:600;margin-bottom:5px}
+.kpi-v{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600}
+.kpi-s{font-size:10px;color:var(--tx2);margin-top:3px}
+.pos{color:var(--bull)}.neg{color:var(--bear)}.gld{color:var(--gold)}.blu{color:var(--blue)}
+
+/* Charts */
+.chart-card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:20px;margin-bottom:20px}
+.chart-card h3{font-size:13px;font-weight:700;margin-bottom:2px}
+.chart-card .cst{font-size:11px;color:var(--tx3);margin-bottom:14px}
+.chart-wrap{position:relative;height:400px}
+.legend-r{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.legend-i{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)}
+.legend-sw{width:14px;height:2.5px;border-radius:1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+@media(max-width:860px){.two{grid-template-columns:1fr}}
+
+/* Table */
+.tbl-wrap{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:16px 16px 8px;margin-bottom:20px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;padding:8px 10px;color:var(--tx3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;font-size:10px;border-bottom:1.5px solid var(--bdr);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--bdr-l);font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap}
+tr:hover td{background:var(--bg2)}
+tr.hl td{background:var(--bear-bg)}
+.tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.tag-b{background:var(--bull-bg);color:var(--bull)}
+.tag-s{background:var(--bear-bg);color:var(--bear)}
+.tag-o{background:var(--gold-bg);color:var(--gold)}
+
+/* Cross-asset table */
+.xa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+.xa-card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;padding:16px}
+.xa-card h4{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.xa-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--bdr-l)}
+.xa-row:last-child{border:none}
+.xa-k{color:var(--tx2)}.xa-v{font-family:'IBM Plex Mono',monospace;font-weight:500}
+
+/* Review panel */
+.review{background:var(--card);border:1.5px solid var(--gold);border-radius:8px;padding:24px;margin-bottom:24px}
+.review h3{font-size:14px;font-weight:700;color:var(--gold);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.review .rsub{font-size:11px;color:var(--tx3);margin-bottom:16px}
+.review-item{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--bdr-l)}
+.review-item:last-child{border:none;margin-bottom:0;padding-bottom:0}
+.review-item h4{font-size:12px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.review-item p{font-size:12px;color:var(--tx2);line-height:1.65}
+.sev{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;text-transform:uppercase}
+.sev-h{background:var(--bear-bg);color:var(--bear)}
+.sev-m{background:var(--gold-bg);color:var(--gold)}
+.sev-l{background:var(--blue-bg);color:var(--blue)}
+
+/* Upload area */
+.upload-area{background:var(--bg2);border:2px dashed var(--bdr);border-radius:10px;padding:40px;text-align:center;margin-bottom:24px}
+.upload-area h3{font-size:16px;margin-bottom:8px}
+.upload-area p{font-size:13px;color:var(--tx2);margin-bottom:16px}
+.upload-area input[type=file]{display:none}
+.upload-area .file-list{margin-top:12px;font-size:12px;color:var(--tx2);text-align:left;max-width:400px;margin-left:auto;margin-right:auto}
+.upload-area .file-ok{color:var(--bull);font-weight:600}
+.upload-area .file-wait{color:var(--tx3)}
+
+.status-banner{padding:12px 16px;border-radius:8px;font-size:12px;margin-bottom:20px;display:none}
+.status-banner.show{display:block}
+.status-banner.bear-s{background:var(--bear-bg);border:1px solid rgba(214,48,49,.2);color:var(--bear)}
+.status-banner.bull-s{background:var(--bull-bg);border:1px solid rgba(13,150,104,.2);color:var(--bull)}
+
+.footer{text-align:center;padding:24px;font-size:10px;color:var(--tx3);border-top:1px solid var(--bdr);margin-top:32px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div>
+    <h1>Crypto 50W / 200W MAV Strategy Backtest</h1>
+    <div class="sub">Long above 50W SMA · Exit below · Benjamin Cowen framework</div>
+  </div>
+  <div class="meta">
+    <div id="dataMeta">Upload TradingView weekly CSVs to begin</div>
+    <div class="mono" style="margin-top:3px">v3.1</div>
+  </div>
+</div>
+
+<!-- Upload Section (shown when no baked data) -->
+<div id="uploadSection" class="upload-area">
+  <h3>Load Weekly Price Data</h3>
+  <p>Export 1W chart data from TradingView as CSV for each asset.<br>
+  Need: <strong>BTC</strong>, <strong>ETH</strong>, <strong>XRP</strong>, <strong>BNB</strong> (any subset works)</p>
+  <label class="btn" for="fileInput" style="cursor:pointer">Choose CSV Files</label>
+  <input type="file" id="fileInput" multiple accept=".csv">
+  <div class="file-list" id="fileList">
+    <div>BTC: <span id="fBTC" class="file-wait">waiting…</span></div>
+    <div>ETH: <span id="fETH" class="file-wait">waiting…</span></div>
+    <div>XRP: <span id="fXRP" class="file-wait">waiting…</span></div>
+    <div>BNB: <span id="fBNB" class="file-wait">waiting…</span></div>
+  </div>
+</div>
+
+<!-- Dashboard (shown after data load) -->
+<div id="dashboard" class="hidden">
+
+<div class="tabs" id="assetTabs"></div>
+
+<div id="statusBanner" class="status-banner"></div>
+
+<div class="ctrls">
+  <label>Period:</label>
+  <select id="dateRange">
+    <option value="all" selected>All History</option>
+    <option value="10">10Y</option><option value="5">5Y</option>
+    <option value="3">3Y</option><option value="1">1Y</option>
+  </select>
+  <label>Confirm Weeks:</label>
+  <select id="confirmWeeks">
+    <option value="1">1W</option><option value="2" selected>2W</option>
+    <option value="3">3W</option><option value="4">4W</option>
+  </select>
+  <label>Tx Cost %:</label>
+  <input type="number" id="txCost" value="0.50" step="0.10" min="0" max="3" style="width:65px">
+  <button class="btn" onclick="runCurrent()">Run</button>
+  <span style="flex:1"></span>
+  <button class="btn-outline" onclick="showUpload()">↻ Reload Data</button>
+</div>
+
+<div id="kpiGrid" class="kpis"></div>
+
+<div class="chart-card">
+  <h3 id="priceTitle">Price Chart</h3>
+  <div class="cst">Log scale · Green = Bull regime · Red = Bear regime</div>
+  <div class="legend-r">
+    <div class="legend-i"><div class="legend-sw" style="background:var(--tx)"></div> Price</div>
+    <div class="legend-i"><div class="legend-sw" style="background:var(--gold)"></div> 50W SMA</div>
+    <div class="legend-i"><div class="legend-sw" style="background:var(--bear)"></div> 200W SMA</div>
+  </div>
+  <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+</div>
+
+<div class="two">
+  <div class="chart-card" style="margin-bottom:0">
+    <h3>Equity Curve</h3>
+    <div class="cst">$10,000 initial · Strategy vs Buy & Hold</div>
+    <div class="chart-wrap" style="height:300px"><canvas id="eqChart"></canvas></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:0">
+    <h3>Drawdown</h3>
+    <div class="cst">Peak-to-trough · Strategy (green) vs B&H (grey)</div>
+    <div class="chart-wrap" style="height:300px"><canvas id="ddChart"></canvas></div>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+  <h3 style="font-size:13px;font-weight:700;margin-bottom:10px">Trade Log</h3>
+  <table><thead>
+    <tr><th>#</th><th>Signal</th><th>Date</th><th>Price</th><th>50W SMA</th><th>Hold</th><th>Return</th><th>Cumulative</th></tr>
+  </thead><tbody id="tBody"></tbody></table>
+</div>
+
+<!-- Cross-Asset Summary -->
+<h3 style="font-size:14px;font-weight:700;margin-bottom:12px;padding-bottom:8px;border-bottom:1.5px solid var(--bdr)">Cross-Asset Comparison</h3>
+<div class="xa-grid" id="xaGrid"></div>
+
+<!-- Quant PM Review -->
+<div class="review" id="reviewPanel">
+  <h3>⚠ Senior Quant PM Review: Bias & Robustness Analysis</h3>
+  <div class="rsub">Independent assessment of strategy strengths, weaknesses, and data quality issues</div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-h">HIGH</span> Look-Ahead Bias in SMA Calculation</h4>
+    <p>The 50W SMA requires 50 weeks of prior data. The backtest correctly starts only after sufficient history exists, but the <strong>choice of 50W and 200W</strong> as parameters was itself informed by observing the full history. This is implicit look-ahead / parameter snooping — the "rule of thumb" was discovered by looking at past cycles and may not generalize. The strategy has exactly N=3 independent bear market samples (2014, 2018, 2022), which is insufficient for statistical significance.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-h">HIGH</span> Survivorship Bias — Only Winners Tested</h4>
+    <p>BTC, ETH, XRP, and BNB are tested precisely because they survived and are top coins in 2026. Hundreds of altcoins that <em>also</em> had 50W SMA crossovers but subsequently died (LUNA, FTT, etc.) are excluded. This inflates perceived strategy performance. A proper test would include delisted/dead coins. The strategy "works" partly because these assets recovered — which is the definition of survivorship bias.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-h">HIGH</span> Small Sample Size (N≈3 Cycles)</h4>
+    <p>Bitcoin has experienced only ~3 complete bull/bear cycles. The 50W/200W framework was <em>fitted</em> to these 3 observations. Any pattern matching on N=3 has extremely low statistical power. We cannot distinguish "robust structural signal" from "overfitted coincidence" with so few independent observations. ETH, XRP, BNB have even fewer independent cycles.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-m">MEDIUM</span> SMA Lag Creates Systematic Slippage</h4>
+    <p>The 50W SMA is inherently a 25-week lagging indicator (half the window). This means: (a) entries occur ~6 months after cycle bottoms, missing the sharpest recoveries, (b) exits occur ~2-4 months after cycle peaks, giving back 20-40% of gains. The strategy's true edge is <strong>not</strong> timing — it's drawdown truncation. Reframe the value prop accordingly: this is a <em>regime filter</em>, not an alpha signal.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-m">MEDIUM</span> Whipsaw Drag in Range-Bound Markets</h4>
+    <p>When price oscillates near the 50W SMA (e.g., mid-2019, mid-2024 for ETH), the strategy generates repeated buy/sell signals that accumulate transaction costs and realize small losses. The confirmation-week parameter reduces but does not eliminate this. Review the trade log for consecutive short-hold-period losing trades — these are whipsaw signatures. The 2-week confirmation is itself a tuned parameter adding another degree of freedom.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-m">MEDIUM</span> Execution Assumption: Weekly Close</h4>
+    <p>The backtest assumes execution at the exact weekly close price. In reality: (a) crypto markets are 24/7 so "weekly close" is arbitrary (Sunday UTC? Midnight?), (b) large BTC orders during volatile periods face 0.5-2% slippage, (c) exchange downtime during crashes (see March 2020) may prevent execution entirely. The 0.1% default tx cost likely understates real friction by 3-5x during the moments that matter most.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-m">MEDIUM</span> Cross-Asset Correlation Overstates Diversification</h4>
+    <p>All four assets are highly correlated (ρ > 0.7 in bear markets). Running the strategy on BTC, ETH, XRP, and BNB does not provide 4 independent signals — it provides ~1.3 independent signals. During the 2022 and 2025 bear markets, all four broke their 50W SMA within weeks of each other. Cross-asset "diversification" here is largely illusory.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-l">LOW</span> Data Quality — TradingView Source</h4>
+    <p>TradingView weekly bars are computed from their selected exchange feed (typically Bitstamp for USD pairs). Different exchanges show slightly different closes due to liquidity and timezone conventions. For BNB specifically, early data (2017-2018) is thin and exchange-dependent. None of these differences are large enough to change the strategic conclusion, but exact trade prices may differ by 1-3% from what you'd actually achieve.</p>
+  </div>
+
+  <div class="review-item">
+    <h4><span class="sev sev-l">LOW</span> Regime Dependency — Crypto-Specific Structural Breaks</h4>
+    <p>The 50W/200W pattern emerged in an era of retail-driven, 4-year halving cycles. The market structure has fundamentally shifted: ETF flows, institutional allocation, derivatives market, and on-chain DeFi now dominate. The 2025-2026 cycle is the first test of the framework in a post-ETF world. Historical rhyme ≠ future repeat. The video's own warning applies: "bear markets make fools of both bears and bulls."</p>
+  </div>
+
+  <div class="review-item" style="border-bottom:none">
+    <h4 style="color:var(--bull)">✓ What the Strategy Gets Right</h4>
+    <p>Despite all caveats, the strategy does one thing well: <strong>it systematically avoids 60-80% drawdowns.</strong> Even with lag, whipsaw drag, and parameter snooping, the simple act of stepping aside when a long-term trend breaks is structurally sound as a risk management tool. The correct framing is not "this generates alpha" but "this truncates left-tail risk at the cost of early-cycle upside." For a portfolio allocation framework (not a trading signal), it remains a useful regime filter — consistent with the video's own diversification advice. Per your backtesting principle: deploy <em>after</em> flat/negative periods, not after strong runs.</p>
+  </div>
+</div>
+
+</div><!-- /dashboard -->
+
+<div class="footer">
+  Crypto 50W/200W MAV Backtest · Real TradingView data · Not financial advice · <span id="buildDate"></span>
+</div>
+</div><!-- /wrap -->
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const STATE = {
+  assets: {},       // { BTC: [{date,close},...], ETH: [...], ... }
+  current: null,    // current asset key
+  results: {},      // cached backtest results per asset+params
+  charts: {}        // chart instances
+};
+
+// ============================================================
+// CSV PARSER — handles TradingView export format
+// ============================================================
+function parseTV_CSV(text, assetHint) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 10) throw new Error('Too few rows');
+
+  // TradingView CSV header: "time","open","high","low","close","Volume" (or similar)
+  const header = lines[0].toLowerCase().replace(/"/g, '');
+  const cols = header.split(',').map(c => c.trim());
+
+  // Find column indices
+  const iTime = cols.findIndex(c => c === 'time' || c === 'date' || c === 'timestamp');
+  const iClose = cols.findIndex(c => c === 'close');
+
+  if (iTime < 0 || iClose < 0) {
+    // Try semicolon delimiter
+    const cols2 = header.split(';').map(c => c.trim());
+    const iT2 = cols2.findIndex(c => c === 'time' || c === 'date');
+    const iC2 = cols2.findIndex(c => c === 'close');
+    if (iT2 >= 0 && iC2 >= 0) {
+      return parseDelimited(lines, ';', iT2, iC2);
+    }
+    throw new Error(`Cannot find time/close columns in: ${header}`);
+  }
+
+  return parseDelimited(lines, ',', iTime, iClose);
+}
+
+function parseDelimited(lines, delim, iTime, iClose) {
+  const data = [];
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i].replace(/"/g, '').split(delim);
+    if (row.length <= Math.max(iTime, iClose)) continue;
+
+    let dateStr = row[iTime].trim();
+    const close = parseFloat(row[iClose].trim());
+    if (isNaN(close) || close <= 0) continue;
+
+    // Handle various date formats
+    let d;
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      d = new Date(dateStr.substring(0, 10));
+    } else if (/^\d+$/.test(dateStr)) {
+      // Unix timestamp (seconds)
+      d = new Date(parseInt(dateStr) * 1000);
+    } else {
+      d = new Date(dateStr);
+    }
+
+    if (isNaN(d.getTime())) continue;
+    const iso = d.toISOString().substring(0, 10);
+    data.push({ date: iso, close });
+  }
+
+  // Sort chronologically and dedupe by date
+  data.sort((a, b) => a.date.localeCompare(b.date));
+  const seen = new Set();
+  const deduped = [];
+  for (const row of data) {
+    if (!seen.has(row.date)) { seen.add(row.date); deduped.push(row); }
+  }
+  return deduped;
+}
+
+// ============================================================
+// DETECT ASSET FROM FILENAME
+// ============================================================
+function detectAsset(filename) {
+  const f = filename.toUpperCase();
+  if (f.includes('BTC') || f.includes('BITCOIN')) return 'BTC';
+  if (f.includes('ETH') || f.includes('ETHER')) return 'ETH';
+  if (f.includes('XRP') || f.includes('RIPPLE')) return 'XRP';
+  if (f.includes('BNB') || f.includes('BINANCE')) return 'BNB';
+  return null;
+}
+
+// ============================================================
+// FILE UPLOAD HANDLER
+// ============================================================
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      let asset = detectAsset(file.name);
+
+      // If can't detect from filename, try to infer from price range
+      if (!asset) {
+        const parsed = parseTV_CSV(text, null);
+        const lastPrice = parsed[parsed.length - 1]?.close || 0;
+        if (lastPrice > 10000) asset = 'BTC';
+        else if (lastPrice > 500) asset = 'BNB';
+        else if (lastPrice > 100) asset = 'ETH';
+        else asset = 'XRP';
+      }
+
+      const parsed = parseTV_CSV(text, asset);
+      if (parsed.length < 52) {
+        alert(`${file.name}: Only ${parsed.length} weeks — need at least 52 for 50W SMA`);
+        continue;
+      }
+
+      STATE.assets[asset] = parsed;
+      document.getElementById(`f${asset}`).textContent = `✓ ${parsed.length} weeks (${parsed[0].date} → ${parsed[parsed.length-1].date})`;
+      document.getElementById(`f${asset}`).className = 'file-ok';
+    } catch (err) {
+      console.error(`Error parsing ${file.name}:`, err);
+      alert(`Error parsing ${file.name}: ${err.message}`);
+    }
+  }
+
+  // If we have at least one asset, show dashboard
+  const keys = Object.keys(STATE.assets);
+  if (keys.length > 0) {
+    initDashboard(keys);
+  }
+});
+
+// ============================================================
+// BAKED-IN DATA — Replace this section after CSV upload
+// This placeholder is empty; the build script will inject data here.
+// ============================================================
+// BAKED_DATA_START
+const BAKED_DATA = (function() {
+  const raw = {"BTC":[["2011-08-15",11.7],["2011-08-22",10.0],["2011-08-29",8.89],["2011-09-05",7.4],["2011-09-12",4.92],["2011-09-19",6.05],["2011-09-26",4.82],["2011-10-03",3.89],["2011-10-10",4.05],["2011-10-17",2.27],["2011-10-24",3.5],["2011-10-31",2.95],["2011-11-07",3.35],["2011-11-14",2.37],["2011-11-21",2.77],["2011-11-28",2.93],["2011-12-05",3.27],["2011-12-12",3.5],["2011-12-19",4.27],["2011-12-26",5.0],["2012-01-02",7.0],["2012-01-09",7.15],["2012-01-16",6.79],["2012-01-23",5.5],["2012-01-30",5.6],["2012-02-06",5.67],["2012-02-13",4.38],["2012-02-20",4.98],["2012-02-27",4.81],["2012-03-05",5.0],["2012-03-12",5.25],["2012-03-19",4.54],["2012-03-26",4.89],["2012-04-02",4.76],["2012-04-09",4.99],["2012-04-16",5.17],["2012-04-23",4.91],["2012-04-30",5.08],["2012-05-07",4.94],["2012-05-14",5.03],["2012-05-21",5.07],["2012-05-28",5.19],["2012-06-04",5.42],["2012-06-11",6.19],["2012-06-18",6.4],["2012-06-25",6.52],["2012-07-02",6.73],["2012-07-09",7.57],["2012-07-16",8.42],["2012-07-23",8.71],["2012-07-30",10.71],["2012-08-06",11.49],["2012-08-13",8.06],["2012-08-20",10.31],["2012-08-27",10.18],["2012-09-03",10.98],["2012-09-10",11.75],["2012-09-17",11.99],["2012-09-24",12.22],["2012-10-01",11.71],["2012-10-08",11.79],["2012-10-15",11.32],["2012-10-22",10.54],["2012-10-29",10.64],["2012-11-05",10.82],["2012-11-12",11.51],["2012-11-19",12.31],["2012-11-26",12.42],["2012-12-03",13.29],["2012-12-10",13.27],["2012-12-17",13.14],["2012-12-24",13.2],["2012-12-31",13.15],["2013-01-07",13.64],["2013-01-14",15.5],["2013-01-21",17.6],["2013-01-28",20.29],["2013-02-04",23.7],["2013-02-11",26.98],["2013-02-18",29.78],["2013-02-25",34.33],["2013-03-04",45.29],["2013-03-11",47.24],["2013-03-18",70.22],["2013-03-25",96.15],["2013-04-01",164.97],["2013-04-08",91.11],["2013-04-15",118.81],["2013-04-22",135.28],["2013-04-29",116.57],["2013-05-06",114.5],["2013-05-13",116.38],["2013-05-20",129.5],["2013-05-27",123.0],["2013-06-03",100.17],["2013-06-10",99.37],["2013-06-17",100.41],["2013-06-24",89.53],["2013-07-01",73.96],["2013-07-08",90.03],["2013-07-15",85.93],["2013-07-22",92.71],["2013-07-29",96.38],["2013-08-05",94.09],["2013-08-12",99.3],["2013-08-19",113.12],["2013-08-26",130.66],["2013-09-02",118.34],["2013-09-09",125.36],["2013-09-16",123.27],["2013-09-23",127.01],["2013-09-30",122.49],["2013-10-07",132.82],["2013-10-14",166.59],["2013-10-21",194.0],["2013-10-28",210.0],["2013-11-04",323.0],["2013-11-11",477.38],["2013-11-18",800.05],["2013-11-25",948.0],["2013-12-02",784.9],["2013-12-09",862.0],["2013-12-16",614.11],["2013-12-23",728.0],["2013-12-30",903.43],["2014-01-06",844.05],["2014-01-13",841.13],["2014-01-20",814.92],["2014-01-27",815.0],["2014-02-03",687.37],["2014-02-10",619.01],["2014-02-17",611.99],["2014-02-24",561.36],["2014-03-03",640.0],["2014-03-10",633.04],["2014-03-17",562.28],["2014-03-24",460.0],["2014-03-31",456.27],["2014-04-07",416.3],["2014-04-14",500.0],["2014-04-21",430.0],["2014-04-28",438.04],["2014-05-05",440.0],["2014-05-12",446.91],["2014-05-19",573.9],["2014-05-26",630.99],["2014-06-02",658.0],["2014-06-09",588.55],["2014-06-16",600.34],["2014-06-23",599.89],["2014-06-30",630.57],["2014-07-07",630.88],["2014-07-14",627.0],["2014-07-21",590.3],["2014-07-28",588.73],["2014-08-04",590.96],["2014-08-11",496.86],["2014-08-18",507.85],["2014-08-25",479.04],["2014-09-01",475.43],["2014-09-08",475.49],["2014-09-15",399.55],["2014-09-22",375.35],["2014-09-29",323.52],["2014-10-06",378.11],["2014-10-13",387.53],["2014-10-20",355.18],["2014-10-27",324.36],["2014-11-03",364.77],["2014-11-10",389.86],["2014-11-17",367.17],["2014-11-24",377.01],["2014-12-01",377.26],["2014-12-08",356.52],["2014-12-15",320.01],["2014-12-22",317.64],["2014-12-29",264.0],["2015-01-05",266.39],["2015-01-12",211.85],["2015-01-19",255.31],["2015-01-26",226.93],["2015-02-02",223.88],["2015-02-09",235.63],["2015-02-16",236.5],["2015-02-23",258.34],["2015-03-02",275.0],["2015-03-09",286.75],["2015-03-16",267.74],["2015-03-23",242.0],["2015-03-30",260.54],["2015-04-06",236.5],["2015-04-13",222.54],["2015-04-20",219.52],["2015-04-27",239.0],["2015-05-04",239.13],["2015-05-11",235.97],["2015-05-18",239.22],["2015-05-25",228.91],["2015-06-01",222.7],["2015-06-08",232.09],["2015-06-15",243.64],["2015-06-22",248.62],["2015-06-29",271.5],["2015-07-06",310.55],["2015-07-13",275.47],["2015-07-20",293.19],["2015-07-27",282.32],["2015-08-03",265.05],["2015-08-10",256.11],["2015-08-17",228.89],["2015-08-24",229.0],["2015-08-31",240.28],["2015-09-07",229.66],["2015-09-14",230.16],["2015-09-21",232.41],["2015-09-28",238.6],["2015-10-05",248.05],["2015-10-12",261.05],["2015-10-19",283.96],["2015-10-26",325.78],["2015-11-02",372.65],["2015-11-09",319.28],["2015-11-16",324.2],["2015-11-23",371.48],["2015-11-30",388.24],["2015-12-07",433.07],["2015-12-14",442.54],["2015-12-21",421.76],["2015-12-28",431.04],["2016-01-04",448.79],["2016-01-11",380.16],["2016-01-18",402.16],["2016-01-25",368.49],["2016-02-01",375.0],["2016-02-08",405.0],["2016-02-15",438.5],["2016-02-22",431.68],["2016-02-29",406.23],["2016-03-07",413.04],["2016-03-14",411.28],["2016-03-21",416.64],["2016-03-28",419.11],["2016-04-04",418.36],["2016-04-11",427.42],["2016-04-18",460.02],["2016-04-25",453.0],["2016-05-02",458.21],["2016-05-09",457.56],["2016-05-16",438.8],["2016-05-23",517.84],["2016-05-30",573.91],["2016-06-06",672.13],["2016-06-13",761.44],["2016-06-20",657.79],["2016-06-27",658.27],["2016-07-04",648.76],["2016-07-11",679.54],["2016-07-18",661.47],["2016-07-25",623.83],["2016-08-01",592.47],["2016-08-08",568.76],["2016-08-15",577.55],["2016-08-22",573.2],["2016-08-29",603.72],["2016-09-05",606.32],["2016-09-12",608.0],["2016-09-19",598.98],["2016-09-26",608.6],["2016-10-03",613.06],["2016-10-10",638.97],["2016-10-17",648.74],["2016-10-24",697.23],["2016-10-31",709.93],["2016-11-07",700.38],["2016-11-14",727.09],["2016-11-21",727.32],["2016-11-28",762.0],["2016-12-05",768.97],["2016-12-12",788.67],["2016-12-19",890.67],["2016-12-26",997.75],["2017-01-02",909.75],["2017-01-09",821.86],["2017-01-16",923.76],["2017-01-23",912.01],["2017-01-30",1011.07],["2017-02-06",1000.73],["2017-02-13",1051.8],["2017-02-20",1179.05],["2017-02-27",1273.0],["2017-03-06",1226.62],["2017-03-13",1017.97],["2017-03-20",960.0],["2017-03-27",1078.01],["2017-04-03",1206.2],["2017-04-10",1162.31],["2017-04-17",1241.99],["2017-04-24",1350.21],["2017-05-01",1554.01],["2017-05-08",1784.0],["2017-05-15",2017.55],["2017-05-22",2178.81],["2017-05-29",2530.27],["2017-06-05",2954.22],["2017-06-12",2516.98],["2017-06-19",2502.03],["2017-06-26",2504.37],["2017-07-03",2502.28],["2017-07-10",1917.63],["2017-07-17",2749.02],["2017-07-24",2742.37],["2017-07-31",3222.75],["2017-08-07",4053.87],["2017-08-14",4058.68],["2017-08-21",4337.68],["2017-08-28",4606.26],["2017-09-04",4226.22],["2017-09-11",3662.99],["2017-09-18",3664.22],["2017-09-25",4377.22],["2017-10-02",4597.98],["2017-10-09",5679.7],["2017-10-16",5969.0],["2017-10-23",6137.37],["2017-10-30",7372.72],["2017-11-06",5870.37],["2017-11-13",8016.58],["2017-11-20",9271.06],["2017-11-27",11250.0],["2017-12-04",14691.0],["2017-12-11",18953.0],["2017-12-18",14157.87],["2017-12-25",13880.0],["2018-01-01",16124.02],["2018-01-08",13647.99],["2018-01-15",11558.87],["2018-01-22",11685.58],["2018-01-29",8191.0],["2018-02-05",8067.0],["2018-02-12",10421.06],["2018-02-19",9590.04],["2018-02-26",11463.27],["2018-03-05",9535.04],["2018-03-12",8188.24],["2018-03-19",8453.9],["2018-03-26",6813.52],["2018-04-02",7027.26],["2018-04-09",8354.22],["2018-04-16",8789.96],["2018-04-23",9393.99],["2018-04-30",9623.54],["2018-05-07",8696.58],["2018-05-14",8518.48],["2018-05-21",7347.39],["2018-05-28",7703.67],["2018-06-04",6781.17],["2018-06-11",6453.41],["2018-06-18",6153.4],["2018-06-25",6349.99],["2018-07-02",6706.6],["2018-07-09",6349.3],["2018-07-16",7396.6],["2018-07-23",8216.74],["2018-07-30",7032.61],["2018-08-06",6310.82],["2018-08-13",6481.99],["2018-08-20",6700.46],["2018-08-27",7290.31],["2018-09-03",6236.04],["2018-09-10",6499.98],["2018-09-17",6702.22],["2018-09-24",6597.81],["2018-10-01",6577.63],["2018-10-08",6183.0],["2018-10-15",6413.38],["2018-10-22",6405.57],["2018-10-29",6421.76],["2018-11-05",6357.54],["2018-11-12",5559.26],["2018-11-19",3938.89],["2018-11-26",4102.05],["2018-12-03",3529.75],["2018-12-10",3193.78],["2018-12-17",3943.83],["2018-12-24",3835.79],["2018-12-31",4040.71],["2019-01-07",3515.95],["2019-01-14",3536.72],["2019-01-21",3533.23],["2019-01-28",3414.82],["2019-02-04",3650.37],["2019-02-11",3625.6],["2019-02-18",3730.68],["2019-02-25",3789.52],["2019-03-04",3897.92],["2019-03-11",3965.5],["2019-03-18",3969.99],["2019-03-25",4096.08],["2019-04-01",5190.85],["2019-04-08",5162.72],["2019-04-15",5295.65],["2019-04-22",5160.98],["2019-04-29",5709.32],["2019-05-06",6974.35],["2019-05-13",8200.0],["2019-05-20",8733.26],["2019-05-27",8734.49],["2019-06-03",7632.99],["2019-06-10",8974.19],["2019-06-17",10831.95],["2019-06-24",10760.1],["2019-07-01",11469.96],["2019-07-08",10191.87],["2019-07-15",10600.24],["2019-07-22",9533.19],["2019-07-29",10986.96],["2019-08-05",11528.73],["2019-08-12",10318.99],["2019-08-19",10136.75],["2019-08-26",9767.53],["2019-09-02",10400.18],["2019-09-09",10305.74],["2019-09-16",10020.58],["2019-09-23",8047.6],["2019-09-30",7854.12],["2019-10-07",8282.96],["2019-10-14",8235.74],["2019-10-21",9557.08],["2019-10-28",9207.0],["2019-11-04",9024.49],["2019-11-11",8499.31],["2019-11-18",6908.36],["2019-11-25",7412.66],["2019-12-02",7524.26],["2019-12-09",7115.08],["2019-12-16",7509.7],["2019-12-23",7385.54],["2019-12-30",7356.7],["2020-01-06",8180.76],["2020-01-13",8696.6],["2020-01-20",8590.48],["2020-01-27",9329.39],["2020-02-03",10173.97],["2020-02-10",9912.89],["2020-02-17",9965.21],["2020-02-24",8528.95],["2020-03-02",8033.7],["2020-03-09",5343.64],["2020-03-16",5813.15],["2020-03-23",5870.9],["2020-03-30",6775.2],["2020-04-06",6908.24],["2020-04-13",7126.4],["2020-04-20",7701.73],["2020-04-27",8915.98],["2020-05-04",8731.17],["2020-05-11",9665.7],["2020-05-18",8718.77],["2020-05-25",9446.19],["2020-06-01",9750.04],["2020-06-08",9329.99],["2020-06-15",9283.03],["2020-06-22",9118.01],["2020-06-29",9076.82],["2020-07-06",9306.17],["2020-07-13",9211.99],["2020-07-20",9944.65],["2020-07-27",11071.66],["2020-08-03",11683.03],["2020-08-10",11914.02],["2020-08-17",11644.65],["2020-08-24",11708.97],["2020-08-31",10260.17],["2020-09-07",10334.78],["2020-09-14",10923.5],["2020-09-21",10780.66],["2020-09-28",10669.63],["2020-10-05",11372.93],["2020-10-12",11519.97],["2020-10-19",13039.09],["2020-10-26",13762.0],["2020-11-02",15489.15],["2020-11-09",15975.49],["2020-11-16",18435.2],["2020-11-23",18192.03],["2020-11-30",19380.58],["2020-12-07",19162.36],["2020-12-14",23470.85],["2020-12-21",26259.6],["2020-12-28",33097.83],["2021-01-04",38173.73],["2021-01-11",35819.25],["2021-01-18",32288.83],["2021-01-25",33141.38],["2021-02-01",38858.39],["2021-02-08",48662.5],["2021-02-15",57492.91],["2021-02-22",45240.96],["2021-03-01",50967.3],["2021-03-08",59016.39],["2021-03-15",57381.79],["2021-03-22",55790.92],["2021-03-29",58212.18],["2021-04-05",59979.26],["2021-04-12",56280.6],["2021-04-19",49128.43],["2021-04-26",56622.66],["2021-05-03",58305.24],["2021-05-10",46444.75],["2021-05-17",34706.79],["2021-05-24",35677.72],["2021-05-31",35808.85],["2021-06-07",39013.76],["2021-06-14",35589.77],["2021-06-21",34699.5],["2021-06-28",35289.21],["2021-07-05",34258.53],["2021-07-12",31776.65],["2021-07-19",35428.28],["2021-07-26",39839.0],["2021-08-02",43858.42],["2021-08-09",47028.3],["2021-08-16",49301.86],["2021-08-23",48808.72],["2021-08-30",51809.28],["2021-09-06",46035.0],["2021-09-13",47245.25],["2021-09-20",43204.73],["2021-09-27",48235.93],["2021-10-04",54714.95],["2021-10-11",61538.97],["2021-10-18",60910.16],["2021-10-25",61359.44],["2021-11-01",63300.0],["2021-11-08",65509.87],["2021-11-15",58678.47],["2021-11-22",57338.55],["2021-11-29",49463.22],["2021-12-06",50124.38],["2021-12-13",46704.67],["2021-12-20",50791.21],["2021-12-27",47350.22],["2022-01-03",41875.81],["2022-01-10",43107.7],["2022-01-17",36293.62],["2022-01-24",37941.82],["2022-01-31",42420.24],["2022-02-07",42077.74],["2022-02-14",38373.9],["2022-02-21",37712.68],["2022-02-28",38438.89],["2022-03-07",37790.54],["2022-03-14",41242.14],["2022-03-21",46864.39],["2022-03-28",46401.57],["2022-04-04",42133.85],["2022-04-11",39691.27],["2022-04-18",39467.4],["2022-04-25",38488.34],["2022-05-02",34025.5],["2022-05-09",31295.03],["2022-05-16",30264.66],["2022-05-23",29448.94],["2022-05-30",29888.98],["2022-06-06",26585.1],["2022-06-13",20552.82],["2022-06-20",21028.69],["2022-06-27",19294.46],["2022-07-04",20856.08],["2022-07-11",20801.85],["2022-07-18",22595.81],["2022-07-25",23322.53],["2022-08-01",23187.62],["2022-08-08",24320.0],["2022-08-15",21514.0],["2022-08-22",19557.0],["2022-08-29",20007.0],["2022-09-05",21835.0],["2022-09-12",19419.0],["2022-09-19",18810.0],["2022-09-26",19051.0],["2022-10-03",19445.0],["2022-10-10",19264.0],["2022-10-17",19574.0],["2022-10-24",20628.0],["2022-10-31",20907.0],["2022-11-07",16310.0],["2022-11-14",16256.0],["2022-11-21",16424.0],["2022-11-28",17114.0],["2022-12-05",17091.0],["2022-12-12",16749.0],["2022-12-19",16828.0],["2022-12-26",16615.0],["2023-01-02",17119.0],["2023-01-09",20885.0],["2023-01-16",22717.0],["2023-01-23",23746.0],["2023-01-30",22937.0],["2023-02-06",21789.0],["2023-02-13",24296.0],["2023-02-20",23562.0],["2023-02-27",22428.0],["2023-03-06",22183.0],["2023-03-13",28054.0],["2023-03-20",28004.0],["2023-03-27",28186.0],["2023-04-03",28340.0],["2023-04-10",30330.0],["2023-04-17",27596.0],["2023-04-24",29235.0],["2023-05-01",28472.0],["2023-05-08",26933.0],["2023-05-15",26750.0],["2023-05-22",28072.0],["2023-05-29",27125.0],["2023-06-05",25941.0],["2023-06-12",26340.0],["2023-06-19",30477.0],["2023-06-26",30616.0],["2023-07-03",30167.0],["2023-07-10",30253.0],["2023-07-17",30085.0],["2023-07-24",29279.0],["2023-07-31",29042.0],["2023-08-07",29284.0],["2023-08-14",26192.0],["2023-08-21",26090.0],["2023-08-28",25970.0],["2023-09-04",25836.0],["2023-09-11",26535.0],["2023-09-18",26248.0],["2023-09-25",27995.0],["2023-10-02",27933.0],["2023-10-09",27174.0],["2023-10-16",30002.0],["2023-10-23",34538.0],["2023-10-30",35045.0],["2023-11-06",37086.0],["2023-11-13",37426.0],["2023-11-20",37460.0],["2023-11-27",39989.0],["2023-12-04",43786.0],["2023-12-11",41345.0],["2023-12-18",43033.0],["2023-12-25",42258.0],["2024-01-01",43944.0],["2024-01-08",41715.0],["2024-01-15",41560.0],["2024-01-22",42026.0],["2024-01-29",42570.0],["2024-02-05",48313.0],["2024-02-12",52130.0],["2024-02-19",51722.0],["2024-02-26",63142.0],["2024-03-04",69026.0],["2024-03-11",68352.0],["2024-03-18",67188.0],["2024-03-25",71285.0],["2024-04-01",69358.0],["2024-04-08",65749.0],["2024-04-15",64950.0],["2024-04-22",63098.0],["2024-04-29",64021.0],["2024-05-06",61462.0],["2024-05-13",66275.0],["2024-05-20",68489.0],["2024-05-27",67752.0],["2024-06-03",69640.0],["2024-06-10",66622.0],["2024-06-17",63154.0],["2024-06-24",62676.0],["2024-07-01",55829.0],["2024-07-08",60823.0],["2024-07-15",68158.0],["2024-07-22",68264.0],["2024-07-29",58142.0],["2024-08-05",58725.0],["2024-08-12",58430.0],["2024-08-19",64262.0],["2024-08-26",57310.0],["2024-09-02",54866.0],["2024-09-09",59130.0],["2024-09-16",63563.0],["2024-09-23",65601.0],["2024-09-30",62814.0],["2024-10-07",62849.0],["2024-10-14",69011.0],["2024-10-21",67938.0],["2024-10-28",68738.0],["2024-11-04",80425.0],["2024-11-11",89861.0],["2024-11-18",98007.0],["2024-11-25",97291.0],["2024-12-02",101204.0],["2024-12-09",104427.0],["2024-12-16",95098.0],["2024-12-23",93557.0],["2024-12-30",98327.0],["2025-01-06",94497.0],["2025-01-13",101237.0],["2025-01-20",102573.0],["2025-01-27",97675.0],["2025-02-03",96477.0],["2025-02-10",96132.0],["2025-02-17",96262.0],["2025-02-24",94273.0],["2025-03-03",80708.0],["2025-03-10",82555.0],["2025-03-17",86084.0],["2025-03-24",82359.0],["2025-03-31",78342.0],["2025-04-07",83712.0],["2025-04-14",85198.0],["2025-04-21",93769.0],["2025-04-28",94316.0],["2025-05-05",104129.0],["2025-05-12",106520.0],["2025-05-19",109068.0],["2025-05-26",105705.0],["2025-06-02",105792.0],["2025-06-09",105617.0],["2025-06-16",101015.0],["2025-06-23",108384.0],["2025-06-30",109233.0],["2025-07-07",119135.0],["2025-07-14",117339.0],["2025-07-21",119469.0],["2025-07-28",114226.0],["2025-08-04",119310.0],["2025-08-11",117490.0],["2025-08-18",113478.0],["2025-08-25",108269.0],["2025-09-01",111144.0],["2025-09-08",115342.0],["2025-09-15",115292.0],["2025-09-22",112203.0],["2025-09-29",123519.0],["2025-10-06",115090.0],["2025-10-13",108684.0],["2025-10-20",114551.0],["2025-10-27",110530.0],["2025-11-03",104705.0],["2025-11-10",94187.0],["2025-11-17",86803.0],["2025-11-24",90382.0],["2025-12-01",90405.0],["2025-12-08",88164.0],["2025-12-15",88636.0],["2025-12-22",87870.0],["2025-12-29",91501.0],["2026-01-05",90872.0],["2026-01-12",93636.0],["2026-01-19",86567.0],["2026-01-26",76888.0],["2026-02-02",70283.0],["2026-02-09",68792.0],["2026-02-16",67812.0]],"ETH":[["2015-08-03",0.75],["2015-08-10",1.48],["2015-08-17",1.36],["2015-08-24",1.33],["2015-08-31",1.3],["2015-09-07",0.94],["2015-09-14",0.95],["2015-09-21",0.72],["2015-09-28",0.66],["2015-10-05",0.63],["2015-10-12",0.51],["2015-10-19",0.65],["2015-10-26",1.06],["2015-11-02",1.03],["2015-11-09",0.91],["2015-11-16",0.97],["2015-11-23",0.87],["2015-11-30",0.84],["2015-12-07",0.96],["2015-12-14",0.91],["2015-12-21",0.86],["2015-12-28",0.97],["2016-01-04",1.0],["2016-01-11",1.31],["2016-01-18",2.15],["2016-01-25",2.36],["2016-02-01",2.97],["2016-02-08",5.27],["2016-02-15",4.71],["2016-02-22",6.45],["2016-02-29",11.19],["2016-03-07",15.04],["2016-03-14",10.4],["2016-03-21",10.42],["2016-03-28",11.59],["2016-04-04",8.92],["2016-04-11",9.41],["2016-04-18",8.02],["2016-04-25",8.79],["2016-05-02",9.51],["2016-05-09",9.97],["2016-05-16",14.29],["2016-05-23",12.34],["2016-05-30",13.99],["2016-06-06",15.9],["2016-06-13",12.4],["2016-06-20",13.8],["2016-06-27",11.83],["2016-07-04",10.95],["2016-07-11",11.19],["2016-07-18",12.73],["2016-07-25",11.88],["2016-08-01",10.97],["2016-08-08",11.2],["2016-08-15",11.17],["2016-08-22",10.93],["2016-08-29",11.68],["2016-09-05",11.65],["2016-09-12",12.37],["2016-09-19",13.04],["2016-09-26",13.21],["2016-10-03",12.06],["2016-10-10",11.97],["2016-10-17",12.0],["2016-10-24",11.25],["2016-10-31",10.88],["2016-11-07",10.1],["2016-11-14",9.58],["2016-11-21",8.98],["2016-11-28",7.57],["2016-12-05",8.23],["2016-12-12",7.87],["2016-12-19",7.21],["2016-12-26",8.16],["2017-01-02",10.28],["2017-01-09",9.93],["2017-01-16",10.72],["2017-01-23",10.49],["2017-01-30",11.39],["2017-02-06",11.39],["2017-02-13",12.76],["2017-02-20",14.51],["2017-02-27",19.25],["2017-03-06",23.37],["2017-03-13",45.71],["2017-03-20",50.5],["2017-03-27",48.93],["2017-04-03",43.34],["2017-04-10",48.66],["2017-04-17",48.42],["2017-04-24",78.79],["2017-05-01",93.59],["2017-05-08",90.83],["2017-05-15",156.81],["2017-05-22",170.86],["2017-05-29",246.39],["2017-06-05",342.78],["2017-06-12",371.7],["2017-06-19",302.58],["2017-06-26",290.62],["2017-07-03",243.81],["2017-07-10",159.54],["2017-07-17",225.41],["2017-07-24",197.09],["2017-07-31",264.41],["2017-08-07",298.71],["2017-08-14",298.4],["2017-08-21",347.55],["2017-08-28",350.62],["2017-09-04",298.0],["2017-09-11",257.1],["2017-09-18",283.58],["2017-09-25",302.92],["2017-10-02",308.65],["2017-10-09",335.21],["2017-10-16",294.07],["2017-10-23",303.59],["2017-10-30",294.6],["2017-11-06",306.1],["2017-11-13",354.48],["2017-11-20",467.0],["2017-11-27",463.0],["2017-12-04",425.07],["2017-12-11",706.91],["2017-12-18",686.96],["2017-12-25",743.48],["2018-01-01",1117.96],["2018-01-08",1359.59],["2018-01-15",1049.09],["2018-01-22",1229.41],["2018-01-29",826.51],["2018-02-05",809.69],["2018-02-12",912.85],["2018-02-19",842.65],["2018-02-26",862.28],["2018-03-05",720.38],["2018-03-12",538.0],["2018-03-19",521.99],["2018-03-26",378.0],["2018-04-02",400.23],["2018-04-09",533.83],["2018-04-16",621.5],["2018-04-23",689.23],["2018-04-30",787.42],["2018-05-07",730.06],["2018-05-14",716.0],["2018-05-21",571.39],["2018-05-28",619.59],["2018-06-04",526.28],["2018-06-11",497.26],["2018-06-18",455.27],["2018-06-25",452.42],["2018-07-02",485.52],["2018-07-09",449.54],["2018-07-16",457.0],["2018-07-23",466.47],["2018-07-30",408.97],["2018-08-06",318.08],["2018-08-13",299.97],["2018-08-20",274.69],["2018-08-27",294.75],["2018-09-03",195.8],["2018-09-10",220.08],["2018-09-17",244.14],["2018-09-24",231.96],["2018-10-01",224.34],["2018-10-08",192.01],["2018-10-15",202.19],["2018-10-22",202.44],["2018-10-29",210.28],["2018-11-05",210.03],["2018-11-12",175.99],["2018-11-19",113.59],["2018-11-26",114.91],["2018-12-03",92.63],["2018-12-10",83.76],["2018-12-17",129.73],["2018-12-24",138.56],["2018-12-31",156.0],["2019-01-07",115.25],["2019-01-14",117.48],["2019-01-21",111.33],["2019-01-28",105.91],["2019-02-04",123.94],["2019-02-11",132.28],["2019-02-18",131.84],["2019-02-25",129.63],["2019-03-04",134.59],["2019-03-11",138.15],["2019-03-18",135.29],["2019-03-25",141.02],["2019-04-01",174.9],["2019-04-08",168.0],["2019-04-15",169.87],["2019-04-22",153.13],["2019-04-29",161.35],["2019-05-06",188.26],["2019-05-13",261.34],["2019-05-20",268.21],["2019-05-27",269.42],["2019-06-03",231.73],["2019-06-10",268.19],["2019-06-17",306.39],["2019-06-24",289.95],["2019-07-01",306.59],["2019-07-08",225.89],["2019-07-15",225.28],["2019-07-22",211.14],["2019-07-29",223.0],["2019-08-05",216.02],["2019-08-12",194.72],["2019-08-19",186.45],["2019-08-26",171.27],["2019-09-02",181.48],["2019-09-09",189.54],["2019-09-16",211.17],["2019-09-23",169.42],["2019-09-30",170.12],["2019-10-07",181.18],["2019-10-14",175.62],["2019-10-21",184.34],["2019-10-28",181.57],["2019-11-04",188.99],["2019-11-11",183.85],["2019-11-18",139.79],["2019-11-25",151.13],["2019-12-02",150.62],["2019-12-09",142.33],["2019-12-16",132.28],["2019-12-23",134.25],["2019-12-30",134.94],["2020-01-06",146.28],["2020-01-13",166.72],["2020-01-20",167.65],["2020-01-27",188.16],["2020-02-03",228.42],["2020-02-10",258.89],["2020-02-17",275.66],["2020-02-24",217.34],["2020-03-02",199.38],["2020-03-09",123.55],["2020-03-16",122.47],["2020-03-23",124.59],["2020-03-30",143.03],["2020-04-06",158.39],["2020-04-13",180.2],["2020-04-20",197.96],["2020-04-27",210.2],["2020-05-04",188.06],["2020-05-11",207.03],["2020-05-18",199.64],["2020-05-25",231.63],["2020-06-01",244.74],["2020-06-08",231.59],["2020-06-15",227.73],["2020-06-22",224.94],["2020-06-29",227.78],["2020-07-06",242.74],["2020-07-13",239.24],["2020-07-20",311.47],["2020-07-27",371.96],["2020-08-03",390.32],["2020-08-10",434.05],["2020-08-17",390.86],["2020-08-24",428.92],["2020-08-31",352.76],["2020-09-07",366.48],["2020-09-14",370.86],["2020-09-21",357.39],["2020-09-28",352.68],["2020-10-05",374.33],["2020-10-12",378.48],["2020-10-19",406.28],["2020-10-26",396.78],["2020-11-02",454.83],["2020-11-09",448.45],["2020-11-16",561.26],["2020-11-23",576.6],["2020-11-30",602.47],["2020-12-07",590.71],["2020-12-14",638.49],["2020-12-21",683.6],["2020-12-28",979.33],["2021-01-04",1256.0],["2021-01-11",1232.95],["2021-01-18",1393.5],["2021-01-25",1314.17],["2021-02-01",1615.44],["2021-02-08",1802.0],["2021-02-15",1935.24],["2021-02-22",1421.77],["2021-03-01",1727.3],["2021-03-08",1848.37],["2021-03-15",1783.59],["2021-03-22",1686.5],["2021-03-29",2075.74],["2021-04-05",2148.15],["2021-04-12",2241.5],["2021-04-19",2321.81],["2021-04-26",2951.78],["2021-05-03",3928.05],["2021-05-10",3585.36],["2021-05-17",2098.33],["2021-05-24",2389.91],["2021-05-31",2710.48],["2021-06-07",2510.53],["2021-06-14",2242.6],["2021-06-21",1983.22],["2021-06-28",2324.49],["2021-07-05",2138.96],["2021-07-12",1890.99],["2021-07-19",2194.0],["2021-07-26",2556.3],["2021-08-02",3015.33],["2021-08-09",3311.44],["2021-08-16",3241.55],["2021-08-23",3225.34],["2021-08-30",3951.48],["2021-09-06",3406.08],["2021-09-13",3328.81],["2021-09-20",3064.32],["2021-09-27",3417.43],["2021-10-04",3422.0],["2021-10-11",3844.97],["2021-10-18",4082.17],["2021-10-25",4288.58],["2021-11-01",4617.75],["2021-11-08",4630.85],["2021-11-15",4265.94],["2021-11-22",4300.86],["2021-11-29",4198.73],["2021-12-06",4136.06],["2021-12-13",3922.28],["2021-12-20",4062.58],["2021-12-27",3830.84],["2022-01-03",3151.58],["2022-01-10",3350.15],["2022-01-17",2543.27],["2022-01-24",2602.37],["2022-01-31",3058.17],["2022-02-07",2872.78],["2022-02-14",2620.8],["2022-02-21",2617.97],["2022-02-28",2549.4],["2022-03-07",2516.85],["2022-03-14",2859.93],["2022-03-21",3298.06],["2022-03-28",3520.35],["2022-04-04",3202.37],["2022-04-11",2988.57],["2022-04-18",2922.49],["2022-04-25",2826.82],["2022-05-02",2522.67],["2022-05-09",2143.09],["2022-05-16",2040.72],["2022-05-23",1811.84],["2022-05-30",1804.98],["2022-06-06",1432.9],["2022-06-13",1127.33],["2022-06-20",1197.95],["2022-06-27",1073.25],["2022-07-04",1166.53],["2022-07-11",1338.69],["2022-07-18",1598.94],["2022-07-25",1680.11],["2022-08-01",1700.97],["2022-08-08",1936.8],["2022-08-15",1617.5],["2022-08-22",1425.7],["2022-08-29",1580.0],["2022-09-05",1766.8],["2022-09-12",1334.3],["2022-09-19",1292.6],["2022-09-26",1276.5],["2022-10-03",1323.5],["2022-10-10",1306.1],["2022-10-17",1364.1],["2022-10-24",1589.9],["2022-10-31",1568.4],["2022-11-07",1219.5],["2022-11-14",1141.4],["2022-11-21",1193.1],["2022-11-28",1279.6],["2022-12-05",1263.6],["2022-12-12",1183.1],["2022-12-19",1218.1],["2022-12-26",1200.0],["2023-01-02",1289.6],["2023-01-09",1553.2],["2023-01-16",1628.0],["2023-01-23",1645.3],["2023-01-30",1629.8],["2023-02-06",1515.7],["2023-02-13",1682.7],["2023-02-20",1642.0],["2023-02-27",1564.6],["2023-03-06",1591.4],["2023-03-13",1785.9],["2023-03-20",1775.7],["2023-03-27",1796.0],["2023-04-03",1859.7],["2023-04-10",2120.4],["2023-04-17",1862.2],["2023-04-24",1868.8],["2023-05-01",1873.1],["2023-05-08",1800.2],["2023-05-15",1805.4],["2023-05-22",1909.3],["2023-05-29",1890.6],["2023-06-05",1753.4],["2023-06-12",1720.5],["2023-06-19",1899.9],["2023-06-26",1937.6],["2023-07-03",1863.5],["2023-07-10",1923.6],["2023-07-17",1889.4],["2023-07-24",1861.7],["2023-07-31",1827.6],["2023-08-07",1839.3],["2023-08-14",1685.4],["2023-08-21",1657.8],["2023-08-28",1635.8],["2023-09-04",1616.8],["2023-09-11",1623.3],["2023-09-18",1581.0],["2023-09-25",1732.1],["2023-10-02",1633.9],["2023-10-09",1557.9],["2023-10-16",1664.1],["2023-10-23",1796.0],["2023-10-30",1894.6],["2023-11-06",2046.5],["2023-11-13",2012.2],["2023-11-20",2062.6],["2023-11-27",2194.1],["2023-12-04",2352.3],["2023-12-11",2194.8],["2023-12-18",2264.7],["2023-12-25",2280.9],["2024-01-01",2222.8],["2024-01-08",2471.6],["2024-01-15",2455.8],["2024-01-22",2256.7],["2024-01-29",2288.6],["2024-02-05",2507.8],["2024-02-12",2881.1],["2024-02-19",3112.3],["2024-02-26",3489.4],["2024-03-04",3882.0],["2024-03-11",3642.4],["2024-03-18",3453.9],["2024-03-25",3645.6],["2024-04-01",3454.1],["2024-04-08",3159.4],["2024-04-15",3148.3],["2024-04-22",3263.0],["2024-04-29",3137.0],["2024-05-06",2928.0],["2024-05-13",3070.9],["2024-05-20",3824.6],["2024-05-27",3778.7],["2024-06-03",3706.0],["2024-06-10",3622.2],["2024-06-17",3418.7],["2024-06-24",3431.7],["2024-07-01",2930.6],["2024-07-08",3246.0],["2024-07-15",3536.1],["2024-07-22",3272.2],["2024-07-29",2688.6],["2024-08-05",2555.5],["2024-08-12",2611.4],["2024-08-19",2748.5],["2024-08-26",2425.9],["2024-09-02",2295.9],["2024-09-09",2317.3],["2024-09-16",2581.2],["2024-09-23",2658.6],["2024-09-30",2439.9],["2024-10-07",2468.0],["2024-10-14",2746.1],["2024-10-21",2505.4],["2024-10-28",2456.5],["2024-11-04",3186.8],["2024-11-11",3076.0],["2024-11-18",3363.6],["2024-11-25",3710.1],["2024-12-02",4007.4],["2024-12-09",3956.0],["2024-12-16",3278.4],["2024-12-23",3349.1],["2024-12-30",3635.5],["2025-01-06",3265.6],["2025-01-13",3211.8],["2025-01-20",3231.3],["2025-01-27",2869.1],["2025-02-03",2628.6],["2025-02-10",2661.6],["2025-02-17",2819.1],["2025-02-24",2518.1],["2025-03-03",2019.6],["2025-03-10",1887.5],["2025-03-17",2005.9],["2025-03-24",1806.7],["2025-03-31",1579.2],["2025-04-07",1596.8],["2025-04-14",1587.4],["2025-04-21",1792.3],["2025-04-28",1808.7],["2025-05-05",2512.7],["2025-05-12",2499.6],["2025-05-19",2552.3],["2025-05-26",2539.2],["2025-06-02",2510.7],["2025-06-09",2548.0],["2025-06-16",2229.1],["2025-06-23",2501.4],["2025-06-30",2571.0],["2025-07-07",2973.7],["2025-07-14",3758.5],["2025-07-21",3874.0],["2025-07-28",3497.5],["2025-08-04",4251.6],["2025-08-11",4475.7],["2025-08-18",4779.6],["2025-08-25",4393.1],["2025-09-01",4306.1],["2025-09-08",4605.9],["2025-09-15",4447.8],["2025-09-22",4144.67],["2025-09-29",4515.02],["2025-10-06",4156.76],["2025-10-13",3984.53],["2025-10-20",4159.0],["2025-10-27",3906.45],["2025-11-03",3582.64],["2025-11-10",3093.01],["2025-11-17",2800.93],["2025-11-24",2992.08],["2025-12-01",3060.05],["2025-12-08",3061.44],["2025-12-15",3001.15],["2025-12-22",2948.39],["2025-12-29",3143.19],["2026-01-05",3117.95],["2026-01-12",3282.84],["2026-01-19",2813.95],["2026-01-26",2267.39],["2026-02-02",2088.28],["2026-02-09",1965.37],["2026-02-16",1962.1]],"XRP":[["2013-07-29",0.01],["2013-08-05",0.0],["2013-08-12",0.01],["2013-08-19",0.01],["2013-08-26",0.01],["2013-09-02",0.01],["2013-09-09",0.01],["2013-09-16",0.01],["2013-09-23",0.01],["2013-09-30",0.01],["2013-10-07",0.01],["2013-10-14",0.01],["2013-10-21",0.01],["2013-10-28",0.01],["2013-11-04",0.01],["2013-11-11",0.01],["2013-11-18",0.01],["2013-11-25",0.05],["2013-12-02",0.04],["2013-12-09",0.03],["2013-12-16",0.02],["2013-12-23",0.03],["2013-12-30",0.03],["2014-01-06",0.02],["2014-01-13",0.02],["2014-01-20",0.02],["2014-01-27",0.02],["2014-02-03",0.02],["2014-02-10",0.02],["2014-02-17",0.02],["2014-02-24",0.01],["2014-03-03",0.01],["2014-03-10",0.01],["2014-03-17",0.01],["2014-03-24",0.01],["2014-03-31",0.01],["2014-04-07",0.01],["2014-04-14",0.01],["2014-04-21",0.0],["2014-04-28",0.01],["2014-05-05",0.01],["2014-05-12",0.01],["2014-05-19",0.0],["2014-05-26",0.0],["2014-06-02",0.0],["2014-06-09",0.0],["2014-06-16",0.0],["2014-06-23",0.0],["2014-06-30",0.0],["2014-07-07",0.0],["2014-07-14",0.01],["2014-07-21",0.01],["2014-07-28",0.01],["2014-08-04",0.0],["2014-08-11",0.01],["2014-08-18",0.01],["2014-08-25",0.0],["2014-09-01",0.0],["2014-09-08",0.01],["2014-09-15",0.0],["2014-09-22",0.01],["2014-09-29",0.0],["2014-10-06",0.0],["2014-10-13",0.0],["2014-10-20",0.0],["2014-10-27",0.0],["2014-11-03",0.0],["2014-11-10",0.01],["2014-11-17",0.01],["2014-11-24",0.01],["2014-12-01",0.01],["2014-12-08",0.02],["2014-12-15",0.02],["2014-12-22",0.02],["2014-12-29",0.02],["2015-01-05",0.02],["2015-01-12",0.02],["2015-01-19",0.02],["2015-01-26",0.01],["2015-02-02",0.01],["2015-02-09",0.01],["2015-02-16",0.01],["2015-02-23",0.01],["2015-03-02",0.01],["2015-03-09",0.01],["2015-03-16",0.01],["2015-03-23",0.01],["2015-03-30",0.01],["2015-04-06",0.01],["2015-04-13",0.01],["2015-04-20",0.01],["2015-04-27",0.01],["2015-05-04",0.01],["2015-05-11",0.01],["2015-05-18",0.01],["2015-05-25",0.01],["2015-06-01",0.01],["2015-06-08",0.01],["2015-06-15",0.01],["2015-06-22",0.01],["2015-06-29",0.01],["2015-07-06",0.01],["2015-07-13",0.01],["2015-07-20",0.01],["2015-07-27",0.01],["2015-08-03",0.01],["2015-08-10",0.01],["2015-08-17",0.01],["2015-08-24",0.01],["2015-08-31",0.01],["2015-09-07",0.01],["2015-09-14",0.01],["2015-09-21",0.01],["2015-09-28",0.01],["2015-10-05",0.01],["2015-10-12",0.0],["2015-10-19",0.0],["2015-10-26",0.0],["2015-11-02",0.0],["2015-11-09",0.0],["2015-11-16",0.0],["2015-11-23",0.0],["2015-11-30",0.01],["2015-12-07",0.01],["2015-12-14",0.01],["2015-12-21",0.01],["2015-12-28",0.01],["2016-01-04",0.01],["2016-01-11",0.01],["2016-01-18",0.01],["2016-01-25",0.01],["2016-02-01",0.01],["2016-02-08",0.01],["2016-02-15",0.01],["2016-02-22",0.01],["2016-02-29",0.01],["2016-03-07",0.01],["2016-03-14",0.01],["2016-03-21",0.01],["2016-03-28",0.01],["2016-04-04",0.01],["2016-04-11",0.01],["2016-04-18",0.01],["2016-04-25",0.01],["2016-05-02",0.01],["2016-05-09",0.01],["2016-05-16",0.01],["2016-05-23",0.01],["2016-05-30",0.01],["2016-06-06",0.01],["2016-06-13",0.01],["2016-06-20",0.01],["2016-06-27",0.01],["2016-07-04",0.01],["2016-07-11",0.01],["2016-07-18",0.01],["2016-07-25",0.01],["2016-08-01",0.01],["2016-08-08",0.01],["2016-08-15",0.01],["2016-08-22",0.01],["2016-08-29",0.01],["2016-09-05",0.01],["2016-09-12",0.01],["2016-09-19",0.01],["2016-09-26",0.01],["2016-10-03",0.01],["2016-10-10",0.01],["2016-10-17",0.01],["2016-10-24",0.01],["2016-10-31",0.01],["2016-11-07",0.01],["2016-11-14",0.01],["2016-11-21",0.01],["2016-11-28",0.01],["2016-12-05",0.01],["2016-12-12",0.01],["2016-12-19",0.01],["2017-01-02",0.01],["2017-01-09",0.01],["2017-01-16",0.01],["2017-01-23",0.01],["2017-01-30",0.01],["2017-02-06",0.01],["2017-02-13",0.01],["2017-02-20",0.01],["2017-02-27",0.01],["2017-03-06",0.01],["2017-03-13",0.01],["2017-03-20",0.01],["2017-03-27",0.06],["2017-04-03",0.03],["2017-04-10",0.03],["2017-04-17",0.03],["2017-04-24",0.05],["2017-05-01",0.14],["2017-05-08",0.22],["2017-05-15",0.32],["2017-05-22",0.23],["2017-05-29",0.29],["2017-06-05",0.27],["2017-06-12",0.27],["2017-06-19",0.26],["2017-06-26",0.25],["2017-07-03",0.23],["2017-07-10",0.15],["2017-07-17",0.2],["2017-07-24",0.16],["2017-07-31",0.18],["2017-08-07",0.17],["2017-08-14",0.16],["2017-08-21",0.2],["2017-08-28",0.23],["2017-09-04",0.22],["2017-09-11",0.18],["2017-09-18",0.18],["2017-09-25",0.21],["2017-10-02",0.28],["2017-10-09",0.26],["2017-10-16",0.2],["2017-10-23",0.2],["2017-10-30",0.2],["2017-11-06",0.19],["2017-11-13",0.23],["2017-11-20",0.25],["2017-11-27",0.25],["2017-12-04",0.23],["2017-12-11",0.71],["2017-12-18",1.01],["2017-12-25",1.99],["2018-01-01",2.75],["2018-01-08",1.82],["2018-01-15",1.36],["2018-01-22",1.35],["2018-01-29",0.82],["2018-02-05",0.96],["2018-02-12",1.07],["2018-02-19",0.9],["2018-02-26",1.0],["2018-03-05",0.82],["2018-03-12",0.65],["2018-03-19",0.63],["2018-03-26",0.48],["2018-04-02",0.5],["2018-04-09",0.69],["2018-04-16",0.86],["2018-04-23",0.87],["2018-04-30",0.86],["2018-05-07",0.73],["2018-05-14",0.7],["2018-05-21",0.6],["2018-05-28",0.69],["2018-06-04",0.58],["2018-06-11",0.53],["2018-06-18",0.47],["2018-06-25",0.46],["2018-07-02",0.48],["2018-07-09",0.45],["2018-07-16",0.45],["2018-07-23",0.45],["2018-07-30",0.43],["2018-08-06",0.3],["2018-08-13",0.34],["2018-08-20",0.32],["2018-08-27",0.34],["2018-09-03",0.28],["2018-09-10",0.28],["2018-09-17",0.57],["2018-09-24",0.58],["2018-10-01",0.48],["2018-10-08",0.4],["2018-10-15",0.45],["2018-10-22",0.46],["2018-10-29",0.47],["2018-11-05",0.5],["2018-11-12",0.51],["2018-11-19",0.37],["2018-11-26",0.36],["2018-12-03",0.31],["2018-12-10",0.28],["2018-12-17",0.37],["2018-12-24",0.37],["2018-12-31",0.37],["2019-01-07",0.32],["2019-01-14",0.32],["2019-01-21",0.3],["2019-01-28",0.3],["2019-02-04",0.31],["2019-02-11",0.3],["2019-02-18",0.3],["2019-02-25",0.31],["2019-03-04",0.31],["2019-03-11",0.31],["2019-03-18",0.31],["2019-03-25",0.31],["2019-04-01",0.36],["2019-04-08",0.33],["2019-04-15",0.32],["2019-04-22",0.29],["2019-04-29",0.3],["2019-05-06",0.31],["2019-05-13",0.42],["2019-05-20",0.41],["2019-05-27",0.44],["2019-06-03",0.39],["2019-06-10",0.43],["2019-06-17",0.47],["2019-06-24",0.39],["2019-07-01",0.4],["2019-07-08",0.3],["2019-07-15",0.33],["2019-07-22",0.31],["2019-07-29",0.32],["2019-08-05",0.3],["2019-08-12",0.28],["2019-08-19",0.27],["2019-08-26",0.26],["2019-09-02",0.26],["2019-09-09",0.26],["2019-09-16",0.28],["2019-09-23",0.24],["2019-09-30",0.25],["2019-10-07",0.28],["2019-10-14",0.29],["2019-10-21",0.3],["2019-10-28",0.29],["2019-11-04",0.28],["2019-11-11",0.26],["2019-11-18",0.22],["2019-11-25",0.23],["2019-12-02",0.23],["2019-12-09",0.22],["2019-12-16",0.2],["2019-12-23",0.2],["2019-12-30",0.19],["2020-01-06",0.21],["2020-01-13",0.24],["2020-01-20",0.23],["2020-01-27",0.25],["2020-02-03",0.28],["2020-02-10",0.29],["2020-02-17",0.28],["2020-02-24",0.23],["2020-03-02",0.2],["2020-03-09",0.15],["2020-03-16",0.15],["2020-03-23",0.16],["2020-03-30",0.18],["2020-04-06",0.19],["2020-04-13",0.19],["2020-04-20",0.2],["2020-04-27",0.22],["2020-05-04",0.2],["2020-05-11",0.2],["2020-05-18",0.19],["2020-05-25",0.2],["2020-06-01",0.2],["2020-06-08",0.19],["2020-06-15",0.19],["2020-06-22",0.18],["2020-06-29",0.18],["2020-07-06",0.2],["2020-07-13",0.2],["2020-07-20",0.22],["2020-07-27",0.29],["2020-08-03",0.29],["2020-08-10",0.3],["2020-08-17",0.28],["2020-08-24",0.28],["2020-08-31",0.24],["2020-09-07",0.24],["2020-09-14",0.25],["2020-09-21",0.24],["2020-09-28",0.25],["2020-10-05",0.26],["2020-10-12",0.24],["2020-10-19",0.25],["2020-10-26",0.24],["2020-11-02",0.25],["2020-11-09",0.27],["2020-11-16",0.45],["2020-11-23",0.61],["2020-11-30",0.62],["2020-12-07",0.51],["2020-12-14",0.56],["2020-12-21",0.28],["2020-12-28",0.23],["2021-01-04",0.32],["2021-01-11",0.28],["2021-01-18",0.27],["2021-01-25",0.5],["2021-02-01",0.42],["2021-02-08",0.59],["2021-02-15",0.54],["2021-02-22",0.42],["2021-03-01",0.47],["2021-03-08",0.44],["2021-03-15",0.52],["2021-03-22",0.55],["2021-03-29",0.63],["2021-04-05",1.35],["2021-04-12",1.41],["2021-04-19",1.03],["2021-04-26",1.56],["2021-05-03",1.54],["2021-05-10",1.45],["2021-05-17",0.79],["2021-05-24",0.91],["2021-05-31",0.95],["2021-06-07",0.88],["2021-06-14",0.77],["2021-06-21",0.65],["2021-06-28",0.7],["2021-07-05",0.64],["2021-07-12",0.59],["2021-07-19",0.61],["2021-07-26",0.72],["2021-08-02",0.78],["2021-08-09",1.28],["2021-08-16",1.23],["2021-08-23",1.14],["2021-08-30",1.31],["2021-09-06",1.12],["2021-09-13",1.05],["2021-09-20",0.94],["2021-09-27",1.05],["2021-10-04",1.14],["2021-10-11",1.09],["2021-10-18",1.08],["2021-10-25",1.11],["2021-11-01",1.22],["2021-11-08",1.19],["2021-11-15",1.06],["2021-11-22",0.97],["2021-11-29",0.81],["2021-12-06",0.84],["2021-12-13",0.84],["2021-12-20",0.92],["2021-12-27",0.86],["2022-01-03",0.75],["2022-01-10",0.78],["2022-01-17",0.63],["2022-01-24",0.6],["2022-01-31",0.68],["2022-02-07",0.81],["2022-02-14",0.78],["2022-02-21",0.72],["2022-02-28",0.72],["2022-03-07",0.76],["2022-03-14",0.8],["2022-03-21",0.86],["2022-03-28",0.84],["2022-04-04",0.75],["2022-04-11",0.75],["2022-04-18",0.7],["2022-04-25",0.61],["2022-05-02",0.57],["2022-05-09",0.45],["2022-05-16",0.42],["2022-05-23",0.39],["2022-05-30",0.4],["2022-06-06",0.34],["2022-06-13",0.33],["2022-06-20",0.36],["2022-06-27",0.32],["2022-07-04",0.32],["2022-07-11",0.34],["2022-07-18",0.36],["2022-07-25",0.38],["2022-08-01",0.37],["2022-08-08",0.38],["2022-08-15",0.34],["2022-08-22",0.32],["2022-08-29",0.33],["2022-09-05",0.36],["2022-09-12",0.36],["2022-09-19",0.49],["2022-09-26",0.45],["2022-10-03",0.53],["2022-10-10",0.48],["2022-10-17",0.47],["2022-10-24",0.46],["2022-10-31",0.47],["2022-11-07",0.34],["2022-11-14",0.36],["2022-11-21",0.4],["2022-11-28",0.39],["2022-12-05",0.38],["2022-12-12",0.35],["2022-12-19",0.35],["2022-12-26",0.34],["2023-01-02",0.34],["2023-01-09",0.38],["2023-01-16",0.4],["2023-01-23",0.41],["2023-01-30",0.4],["2023-02-06",0.37],["2023-02-13",0.39],["2023-02-20",0.38],["2023-02-27",0.37],["2023-03-06",0.37],["2023-03-13",0.39],["2023-03-20",0.45],["2023-03-27",0.52],["2023-04-03",0.51],["2023-04-10",0.52],["2023-04-17",0.46],["2023-04-24",0.47],["2023-05-01",0.45],["2023-05-08",0.43],["2023-05-15",0.46],["2023-05-22",0.48],["2023-05-29",0.54],["2023-06-05",0.52],["2023-06-12",0.49],["2023-06-19",0.49],["2023-06-26",0.48],["2023-07-03",0.47],["2023-07-10",0.75],["2023-07-17",0.74],["2023-07-24",0.7],["2023-07-31",0.62],["2023-08-07",0.63],["2023-08-14",0.54],["2023-08-21",0.52],["2023-08-28",0.5],["2023-09-04",0.5],["2023-09-11",0.49],["2023-09-18",0.5],["2023-09-25",0.52],["2023-10-02",0.52],["2023-10-09",0.49],["2023-10-16",0.52],["2023-10-23",0.56],["2023-10-30",0.66],["2023-11-06",0.66],["2023-11-13",0.63],["2023-11-20",0.62],["2023-11-27",0.62],["2023-12-04",0.66],["2023-12-11",0.61],["2023-12-18",0.61],["2023-12-25",0.62],["2024-01-01",0.55],["2024-01-08",0.58],["2024-01-15",0.55],["2024-01-22",0.52],["2024-01-29",0.5],["2024-02-05",0.53],["2024-02-12",0.56],["2024-02-19",0.54],["2024-02-26",0.63],["2024-03-04",0.61],["2024-03-11",0.62],["2024-03-18",0.63],["2024-03-25",0.63],["2024-04-01",0.59],["2024-04-08",0.5],["2024-04-15",0.52],["2024-04-22",0.51],["2024-04-29",0.53],["2024-05-06",0.5],["2024-05-13",0.51],["2024-05-20",0.53],["2024-05-27",0.51],["2024-06-03",0.5],["2024-06-10",0.49],["2024-06-17",0.48],["2024-06-24",0.48],["2024-07-01",0.42],["2024-07-08",0.52],["2024-07-15",0.6],["2024-07-22",0.6],["2024-07-29",0.52],["2024-08-05",0.55],["2024-08-12",0.56],["2024-08-19",0.6],["2024-08-26",0.55],["2024-09-02",0.53],["2024-09-09",0.57],["2024-09-16",0.59],["2024-09-23",0.64],["2024-09-30",0.53],["2024-10-07",0.53],["2024-10-14",0.55],["2024-10-21",0.52],["2024-10-28",0.5],["2024-11-04",0.59],["2024-11-11",1.05],["2024-11-18",1.43],["2024-11-25",2.3],["2024-12-02",2.6],["2024-12-09",2.45],["2024-12-16",2.2],["2024-12-23",2.09],["2024-12-30",2.4],["2025-01-06",2.5],["2025-01-13",2.95],["2025-01-20",3.02],["2025-01-27",2.58],["2025-02-03",2.39],["2025-02-10",2.73],["2025-02-17",2.57],["2025-02-24",2.94],["2025-03-03",2.14],["2025-03-10",2.3],["2025-03-17",2.44],["2025-03-24",2.14],["2025-03-31",1.92],["2025-04-07",2.12],["2025-04-14",2.08],["2025-04-21",2.25],["2025-04-28",2.16],["2025-05-05",2.37],["2025-05-12",2.43],["2025-05-19",2.34],["2025-05-26",2.18],["2025-06-02",2.27],["2025-06-09",2.17],["2025-06-16",2.02],["2025-06-23",2.21],["2025-06-30",2.27],["2025-07-07",2.84],["2025-07-14",3.46],["2025-07-21",3.24],["2025-07-28",2.95],["2025-08-04",3.19],["2025-08-11",3.09],["2025-08-18",3.02],["2025-08-25",2.78],["2025-09-01",2.88],["2025-09-08",3.03],["2025-09-15",2.97],["2025-09-22",2.87],["2025-09-29",2.97],["2025-10-06",2.53],["2025-10-13",2.39],["2025-10-20",2.65],["2025-10-27",2.53],["2025-11-03",2.37],["2025-11-10",2.21],["2025-11-17",2.05],["2025-11-24",2.15],["2025-12-01",2.04],["2025-12-08",1.98],["2025-12-15",1.92],["2025-12-22",1.86],["2025-12-29",2.09],["2026-01-05",2.07],["2026-01-12",1.99],["2026-01-19",1.83],["2026-01-26",1.59],["2026-02-02",1.43],["2026-02-09",1.47],["2026-02-16",1.43]],"BNB":[["2017-07-10",0.07],["2017-07-17",0.12],["2017-07-24",0.11],["2017-07-31",0.13],["2017-08-07",0.86],["2017-08-14",2.51],["2017-08-21",2.0],["2017-08-28",1.57],["2017-09-04",0.95],["2017-09-11",0.79],["2017-09-18",0.78],["2017-09-25",1.52],["2017-10-02",1.2],["2017-10-09",1.56],["2017-10-16",1.2],["2017-10-23",1.23],["2017-10-30",1.53],["2017-11-06",1.52],["2017-11-13",1.61],["2017-11-20",1.89],["2017-11-27",2.31],["2017-12-04",2.51],["2017-12-11",6.08],["2017-12-18",5.39],["2017-12-25",8.65],["2018-01-01",18.58],["2018-01-08",20.8],["2018-01-15",14.15],["2018-01-22",13.49],["2018-01-29",8.38],["2018-02-05",8.69],["2018-02-12",10.69],["2018-02-19",9.39],["2018-02-26",10.39],["2018-03-05",8.25],["2018-03-12",8.98],["2018-03-19",12.92],["2018-03-26",11.09],["2018-04-02",12.12],["2018-04-09",13.05],["2018-04-16",12.87],["2018-04-23",15.02],["2018-04-30",13.94],["2018-05-07",13.19],["2018-05-14",14.12],["2018-05-21",12.61],["2018-05-28",14.67],["2018-06-04",14.2],["2018-06-11",16.6],["2018-06-18",14.45],["2018-06-25",14.34],["2018-07-02",14.01],["2018-07-09",12.31],["2018-07-16",12.14],["2018-07-23",13.97],["2018-07-30",13.68],["2018-08-06",11.8],["2018-08-13",10.15],["2018-08-20",10.22],["2018-08-27",11.34],["2018-09-03",9.56],["2018-09-10",9.92],["2018-09-17",10.2],["2018-09-24",9.93],["2018-10-01",10.51],["2018-10-08",9.36],["2018-10-15",9.63],["2018-10-22",9.58],["2018-10-29",9.72],["2018-11-05",9.41],["2018-11-12",7.93],["2018-11-19",5.1],["2018-11-26",5.21],["2018-12-03",4.76],["2018-12-10",4.57],["2018-12-17",5.98],["2018-12-24",5.94],["2018-12-31",6.35],["2019-01-07",5.53],["2019-01-14",6.4],["2019-01-21",7.0],["2019-01-28",6.71],["2019-02-04",9.07],["2019-02-11",9.13],["2019-02-18",9.9],["2019-02-25",11.39],["2019-03-04",14.31],["2019-03-11",15.56],["2019-03-18",17.03],["2019-03-25",17.49],["2019-04-01",19.05],["2019-04-08",19.49],["2019-04-15",24.18],["2019-04-22",22.38],["2019-04-29",22.73],["2019-05-06",20.95],["2019-05-13",29.26],["2019-05-20",33.58],["2019-05-27",33.2],["2019-06-03",30.16],["2019-06-10",32.27],["2019-06-17",37.0],["2019-06-24",31.86],["2019-07-01",33.13],["2019-07-08",28.88],["2019-07-15",30.45],["2019-07-22",27.69],["2019-07-29",27.5],["2019-08-05",30.21],["2019-08-12",27.93],["2019-08-19",26.07],["2019-08-26",21.52],["2019-09-02",22.42],["2019-09-09",20.3],["2019-09-16",20.36],["2019-09-23",15.22],["2019-09-30",15.06],["2019-10-07",18.27],["2019-10-14",18.52],["2019-10-21",19.35],["2019-10-28",20.19],["2019-11-04",20.43],["2019-11-11",20.18],["2019-11-18",15.02],["2019-11-25",15.45],["2019-12-02",15.63],["2019-12-09",14.38],["2019-12-16",13.8],["2019-12-23",14.1],["2019-12-30",14.03],["2020-01-06",15.34],["2020-01-13",17.36],["2020-01-20",17.46],["2020-01-27",18.42],["2020-02-03",24.39],["2020-02-10",23.36],["2020-02-17",22.92],["2020-02-24",18.9],["2020-03-02",16.9],["2020-03-09",10.35],["2020-03-16",11.17],["2020-03-23",11.3],["2020-03-30",13.69],["2020-04-06",14.29],["2020-04-13",16.09],["2020-04-20",16.39],["2020-04-27",17.12],["2020-05-04",15.36],["2020-05-11",16.28],["2020-05-18",15.97],["2020-05-25",17.09],["2020-06-01",17.43],["2020-06-08",16.54],["2020-06-15",15.97],["2020-06-22",15.38],["2020-06-29",15.5],["2020-07-06",18.32],["2020-07-13",18.02],["2020-07-20",19.58],["2020-07-27",20.95],["2020-08-03",22.42],["2020-08-10",23.54],["2020-08-17",21.86],["2020-08-24",23.63],["2020-08-31",23.18],["2020-09-07",31.16],["2020-09-14",26.34],["2020-09-21",26.24],["2020-09-28",28.99],["2020-10-05",28.54],["2020-10-12",30.68],["2020-10-19",30.17],["2020-10-26",28.54],["2020-11-02",28.44],["2020-11-09",27.7],["2020-11-16",30.07],["2020-11-23",30.12],["2020-11-30",29.53],["2020-12-07",29.12],["2020-12-14",34.31],["2020-12-21",33.61],["2020-12-28",41.33],["2021-01-04",42.46],["2021-01-11",45.85],["2021-01-18",41.88],["2021-01-25",44.4],["2021-02-01",68.54],["2021-02-08",136.04],["2021-02-15",295.33],["2021-02-22",210.67],["2021-03-01",239.99],["2021-03-08",263.39],["2021-03-15",264.84],["2021-03-22",268.68],["2021-03-29",349.13],["2021-04-05",525.76],["2021-04-12",482.43],["2021-04-19",505.64],["2021-04-26",622.2],["2021-05-03",662.73],["2021-05-10",564.17],["2021-05-17",261.18],["2021-05-24",325.91],["2021-05-31",393.76],["2021-06-07",365.95],["2021-06-14",339.05],["2021-06-21",290.95],["2021-06-28",307.76],["2021-07-05",321.97],["2021-07-12",302.17],["2021-07-19",302.95],["2021-07-26",332.7],["2021-08-02",342.19],["2021-08-09",414.58],["2021-08-16",449.07],["2021-08-23",480.14],["2021-08-30",505.02],["2021-09-06",416.47],["2021-09-13",408.57],["2021-09-20",344.39],["2021-09-27",430.82],["2021-10-04",406.37],["2021-10-11",471.72],["2021-10-18",476.96],["2021-10-25",524.7],["2021-11-01",649.82],["2021-11-08",650.62],["2021-11-15",584.6],["2021-11-22",611.69],["2021-11-29",558.33],["2021-12-06",570.52],["2021-12-13",530.2],["2021-12-20",546.96],["2021-12-27",531.31],["2022-01-03",438.65],["2022-01-10",498.62],["2022-01-17",384.25],["2022-01-24",377.47],["2022-01-31",420.24],["2022-02-07",398.42],["2022-02-14",380.51],["2022-02-21",360.27],["2022-02-28",374.91],["2022-03-07",361.58],["2022-03-14",390.85],["2022-03-21",430.7],["2022-03-28",450.35],["2022-04-04",418.07],["2022-04-11",406.86],["2022-04-18",398.87],["2022-04-25",389.91],["2022-05-02",355.82],["2022-05-09",312.1],["2022-05-16",319.07],["2022-05-23",305.58],["2022-05-30",298.81],["2022-06-06",254.57],["2022-06-13",214.93],["2022-06-20",233.84],["2022-06-27",218.92],["2022-07-04",234.6],["2022-07-11",247.75],["2022-07-18",261.61],["2022-07-25",283.6],["2022-08-01",323.02],["2022-08-08",317.59],["2022-08-15",301.76],["2022-08-22",276.3],["2022-08-29",279.09],["2022-09-05",295.47],["2022-09-12",266.37],["2022-09-19",274.22],["2022-09-26",284.26],["2022-10-03",278.18],["2022-10-10",272.48],["2022-10-17",276.01],["2022-10-24",313.63],["2022-10-31",338.13],["2022-11-07",276.29],["2022-11-14",264.04],["2022-11-21",307.25],["2022-11-28",291.99],["2022-12-05",284.34],["2022-12-12",250.66],["2022-12-19",243.03],["2022-12-26",244.3],["2023-01-02",274.99],["2023-01-09",302.24],["2023-01-16",303.03],["2023-01-23",317.23],["2023-01-30",327.92],["2023-02-06",312.8],["2023-02-13",311.71],["2023-02-20",308.73],["2023-02-27",288.82],["2023-03-06",290.01],["2023-03-13",337.47],["2023-03-20",328.88],["2023-03-27",313.87],["2023-04-03",312.9],["2023-04-10",348.0],["2023-04-17",330.72],["2023-04-24",337.55],["2023-05-01",323.66],["2023-05-08",312.23],["2023-05-15",306.64],["2023-05-22",314.33],["2023-05-29",305.21],["2023-06-05",235.3],["2023-06-12",244.42],["2023-06-19",236.41],["2023-06-26",241.65],["2023-07-03",238.55],["2023-07-10",242.44],["2023-07-17",242.53],["2023-07-24",242.57],["2023-07-31",242.96],["2023-08-07",239.9],["2023-08-14",216.46],["2023-08-21",218.21],["2023-08-28",214.2],["2023-09-04",212.18],["2023-09-11",216.36],["2023-09-18",208.21],["2023-09-25",218.02],["2023-10-02",211.32],["2023-10-09",209.67],["2023-10-16",217.72],["2023-10-23",226.98],["2023-10-30",244.02],["2023-11-06",247.42],["2023-11-13",246.53],["2023-11-20",231.8],["2023-11-27",228.08],["2023-12-04",239.86],["2023-12-11",238.78],["2023-12-18",264.56],["2023-12-25",311.84],["2024-01-01",302.55],["2024-01-08",299.48],["2024-01-15",318.37],["2024-01-22",305.25],["2024-01-29",304.54],["2024-02-05",320.79],["2024-02-12",349.81],["2024-02-19",388.46],["2024-02-26",414.74],["2024-03-04",529.86],["2024-03-11",571.07],["2024-03-18",567.76],["2024-03-25",606.94],["2024-04-01",584.07],["2024-04-08",567.08],["2024-04-15",579.74],["2024-04-22",599.73],["2024-04-29",592.01],["2024-05-06",594.52],["2024-05-13",574.67],["2024-05-20",600.05],["2024-05-27",602.44],["2024-06-03",672.96],["2024-06-10",610.48],["2024-06-17",577.28],["2024-06-24",581.31],["2024-07-01",490.73],["2024-07-08",544.94],["2024-07-15",602.5],["2024-07-22",583.88],["2024-07-29",496.52],["2024-08-05",503.46],["2024-08-12",531.25],["2024-08-19",574.09],["2024-08-26",512.28],["2024-09-02",502.97],["2024-09-09",553.39],["2024-09-16",588.59],["2024-09-23",595.62],["2024-09-30",570.29],["2024-10-07",572.06],["2024-10-14",605.74],["2024-10-21",588.48],["2024-10-28",557.56],["2024-11-04",627.7],["2024-11-11",619.03],["2024-11-18",660.25],["2024-11-25",656.38],["2024-12-02",742.5],["2024-12-09",718.69],["2024-12-16",649.37],["2024-12-23",693.48],["2024-12-30",709.1],["2025-01-06",693.0],["2025-01-13",682.38],["2025-01-20",667.19],["2025-01-27",617.54],["2025-02-03",615.89],["2025-02-10",673.26],["2025-02-17",658.23],["2025-02-24",623.63],["2025-03-03",554.35],["2025-03-10",602.3],["2025-03-17",623.58],["2025-03-24",601.92],["2025-03-31",555.31],["2025-04-07",584.17],["2025-04-14",592.69],["2025-04-21",603.69],["2025-04-28",586.13],["2025-05-05",651.2],["2025-05-12",651.75],["2025-05-19",669.67],["2025-05-26",661.06],["2025-06-02",652.33],["2025-06-09",648.46],["2025-06-16",616.03],["2025-06-23",655.13],["2025-06-30",663.28],["2025-07-07",692.23],["2025-07-14",757.25],["2025-07-21",844.15],["2025-07-28",751.05],["2025-08-04",807.19],["2025-08-11",855.88],["2025-08-18",876.09],["2025-08-25",857.69],["2025-09-01",880.35],["2025-09-08",926.88],["2025-09-15",1048.47],["2025-09-22",993.64],["2025-09-29",1167.57],["2025-10-06",1304.07],["2025-10-13",1110.37],["2025-10-20",1138.35],["2025-10-27",1082.96],["2025-11-03",996.46],["2025-11-10",926.2],["2025-11-17",843.32],["2025-11-24",875.73],["2025-12-01",894.68],["2025-12-08",877.6],["2025-12-15",858.33],["2025-12-22",858.75],["2025-12-29",895.2],["2026-01-05",902.96],["2026-01-12",931.94],["2026-01-19",864.73],["2026-01-26",757.51],["2026-02-02",639.57],["2026-02-09",614.79],["2026-02-16",626.15]]};
+  const out = {};
+  for (const [k, arr] of Object.entries(raw)) {
+    out[k] = arr.map(([d, c]) => ({ date: d, close: c }));
+  }
+  return out;
+})();
+// BAKED_DATA_END
+
+// ============================================================
+// INIT
+// ============================================================
+function initDashboard(assetKeys) {
+  document.getElementById('uploadSection').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+
+  // Build tabs
+  const tabsEl = document.getElementById('assetTabs');
+  tabsEl.innerHTML = assetKeys.map((k, i) =>
+    `<div class="tab ${i === 0 ? 'active' : ''}" data-asset="${k}" onclick="switchAsset('${k}')">${k}</div>`
+  ).join('');
+
+  // Update metadata
+  const ranges = assetKeys.map(k => {
+    const d = STATE.assets[k];
+    return `${k}: ${d[0].date}→${d[d.length-1].date}`;
+  });
+  document.getElementById('dataMeta').innerHTML = ranges.join(' · ');
+  document.getElementById('buildDate').textContent = `Built: ${new Date().toISOString().substring(0, 10)}`;
+
+  STATE.current = assetKeys[0];
+  runCurrent();
+  buildCrossAsset();
+}
+
+function switchAsset(key) {
+  STATE.current = key;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.asset === key));
+  runCurrent();
+}
+
+function showUpload() {
+  document.getElementById('uploadSection').classList.remove('hidden');
+  document.getElementById('dashboard').classList.add('hidden');
+}
+
+// ============================================================
+// BACKTEST ENGINE
+// ============================================================
+function computeSMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    let s = 0;
+    for (let j = i - period + 1; j <= i; j++) s += data[j].close;
+    return s / period;
+  });
+}
+
+function backtest(data, confirmWeeks, txCost) {
+  const sma50 = computeSMA(data, 50);
+  const sma200 = computeSMA(data, 200);
+
+  // Start from week 50 (need SMA50)
+  const startIdx = sma50.findIndex(v => v !== null);
+  if (startIdx < 0) return null;
+
+  let inPos = false, belowN = 0, aboveN = 0;
+  let entryP = 0, entryD = '';
+  let cash = 10000, btc = 0;
+  const trades = [], eqStrat = [], eqBH = [];
+  const bhStart = data[startIdx].close;
+
+  for (let i = startIdx; i < data.length; i++) {
+    const p = data[i].close, ma50 = sma50[i], dt = data[i].date;
+    eqBH.push({ date: dt, value: 10000 * (p / bhStart) });
+
+    if (!inPos) {
+      if (p > ma50) { aboveN++; belowN = 0;
+        if (aboveN >= 1) {
+          inPos = true; entryP = p; entryD = dt;
+          btc = (cash * (1 - txCost)) / p; cash = 0;
+          trades.push({ type: 'BUY', date: dt, price: p, ma50, ret: null, hold: null });
+        }
+      } else { aboveN = 0; }
+    } else {
+      if (p < ma50) { belowN++;
+        if (belowN >= confirmWeeks) {
+          const sv = btc * p * (1 - txCost);
+          const tr = (p - entryP) / entryP;
+          const hw = Math.round((new Date(dt) - new Date(entryD)) / (7*864e5));
+          cash = sv; btc = 0; inPos = false; belowN = 0; aboveN = 0;
+          trades[trades.length - 1].ret = tr;
+          trades[trades.length - 1].hold = hw;
+          trades.push({ type: 'SELL', date: dt, price: p, ma50, ret: tr, hold: hw });
+        }
+      } else { belowN = 0; }
+    }
+    eqStrat.push({ date: dt, value: inPos ? btc * p : cash });
+  }
+
+  // Mark open
+  if (inPos) {
+    const lp = data[data.length - 1];
+    const tr = (lp.close - entryP) / entryP;
+    const hw = Math.round((new Date(lp.date) - new Date(entryD)) / (7*864e5));
+    trades[trades.length - 1].ret = tr;
+    trades[trades.length - 1].hold = hw;
+    trades[trades.length - 1].open = true;
+  }
+
+  // Drawdown
+  function calcDD(eq) {
+    let pk = 0, mx = 0, dd = [];
+    for (const e of eq) {
+      if (e.value > pk) pk = e.value;
+      const d = (e.value - pk) / pk;
+      dd.push({ date: e.date, dd: d });
+      if (d < mx) mx = d;
+    }
+    return { maxDD: mx, series: dd };
+  }
+
+  // Regime zones
+  const zones = [];
+  let cur = null;
+  for (let i = startIdx; i < data.length; i++) {
+    if (sma50[i] === null) continue;
+    const t = data[i].close > sma50[i] ? 'bull' : 'bear';
+    if (!cur || cur.type !== t) {
+      if (cur) { cur.end = i; zones.push(cur); }
+      cur = { type: t, start: i, end: i };
+    } else { cur.end = i; }
+  }
+  if (cur) { cur.end = data.length - 1; zones.push(cur); }
+
+  const sf = eqStrat[eqStrat.length - 1].value;
+  const bf = eqBH[eqBH.length - 1].value;
+  const yrs = (new Date(data[data.length-1].date) - new Date(data[startIdx].date)) / (365.25*864e5);
+  const sells = trades.filter(t => t.type === 'SELL');
+  const wins = sells.filter(t => t.ret > 0).length;
+
+  // Weekly returns for Sharpe proxy
+  const wkReturns = [];
+  for (let i = 1; i < eqStrat.length; i++) {
+    wkReturns.push(eqStrat[i].value / eqStrat[i-1].value - 1);
+  }
+  const avgR = wkReturns.reduce((a, b) => a + b, 0) / wkReturns.length;
+  const stdR = Math.sqrt(wkReturns.reduce((a, b) => a + (b - avgR) ** 2, 0) / wkReturns.length);
+  const sharpe = stdR > 0 ? (avgR / stdR) * Math.sqrt(52) : 0;
+
+  const stratDD = calcDD(eqStrat), bhDD = calcDD(eqBH);
+
+  return {
+    trades, eqStrat, eqBH, sma50, sma200, startIdx, zones,
+    kpi: {
+      stratReturn: (sf / 10000 - 1) * 100,
+      bhReturn: (bf / 10000 - 1) * 100,
+      stratCAGR: (Math.pow(sf / 10000, 1 / yrs) - 1) * 100,
+      bhCAGR: (Math.pow(bf / 10000, 1 / yrs) - 1) * 100,
+      stratMaxDD: stratDD.maxDD * 100,
+      bhMaxDD: bhDD.maxDD * 100,
+      sharpe,
+      nTrades: trades.length,
+      roundTrips: sells.length,
+      winRate: sells.length > 0 ? (wins / sells.length * 100) : 0,
+      wins, losses: sells.length - wins,
+      stratFinal: sf, bhFinal: bf,
+      inPosition: inPos
+    },
+    stratDD, bhDD
+  };
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function runCurrent() {
+  const key = STATE.current;
+  const fullData = STATE.assets[key];
+  if (!fullData) return;
+
+  const cw = parseInt(document.getElementById('confirmWeeks').value);
+  const tc = parseFloat(document.getElementById('txCost').value) / 100;
+  const rangeVal = document.getElementById('dateRange').value;
+
+  // Apply date range filter — but keep enough history for SMA calculation
+  let data = fullData;
+  if (rangeVal !== 'all') {
+    const years = parseInt(rangeVal);
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - years);
+    // We need 200 extra weeks before cutoff for SMA warmup
+    const warmupDate = new Date(cutoff);
+    warmupDate.setDate(warmupDate.getDate() - 200 * 7);
+    const warmupStr = warmupDate.toISOString().substring(0, 10);
+    const cutoffStr = cutoff.toISOString().substring(0, 10);
+
+    data = fullData.filter(d => d.date >= warmupStr);
+    // Store cutoff so rendering can trim display
+    STATE.displayCutoff = cutoffStr;
+  } else {
+    STATE.displayCutoff = null;
+  }
+
+  // Clear cache (params changed)
+  STATE.results = {};
+
+  const res = backtest(data, cw, tc);
+  if (!res) return;
+
+  // Trim display data to date range (KPIs computed on trimmed period)
+  if (STATE.displayCutoff) {
+    const cutIdx = res.eqStrat.findIndex(e => e.date >= STATE.displayCutoff);
+    if (cutIdx > 0) {
+      // Rebase equity curves to the cutoff point
+      const stratBase = res.eqStrat[cutIdx].value;
+      const bhBase = res.eqBH[cutIdx].value;
+      res.eqStrat = res.eqStrat.slice(cutIdx).map(e => ({ date: e.date, value: e.value / stratBase * 10000 }));
+      res.eqBH = res.eqBH.slice(cutIdx).map(e => ({ date: e.date, value: e.value / bhBase * 10000 }));
+
+      // Recalculate KPIs for display period
+      const sf = res.eqStrat[res.eqStrat.length - 1].value;
+      const bf = res.eqBH[res.eqBH.length - 1].value;
+      const yrs = parseInt(rangeVal);
+      res.kpi.stratReturn = (sf / 10000 - 1) * 100;
+      res.kpi.bhReturn = (bf / 10000 - 1) * 100;
+      res.kpi.stratCAGR = (Math.pow(sf / 10000, 1 / yrs) - 1) * 100;
+      res.kpi.bhCAGR = (Math.pow(bf / 10000, 1 / yrs) - 1) * 100;
+      res.kpi.stratFinal = sf;
+      res.kpi.bhFinal = bf;
+
+      // Recompute drawdowns for display period
+      function calcDD2(eq) {
+        let pk = 0, mx = 0, dd = [];
+        for (const e of eq) {
+          if (e.value > pk) pk = e.value;
+          const d = (e.value - pk) / pk;
+          dd.push({ date: e.date, dd: d });
+          if (d < mx) mx = d;
+        }
+        return { maxDD: mx, series: dd };
+      }
+      res.stratDD = calcDD2(res.eqStrat);
+      res.bhDD = calcDD2(res.eqBH);
+      res.kpi.stratMaxDD = res.stratDD.maxDD * 100;
+      res.kpi.bhMaxDD = res.bhDD.maxDD * 100;
+
+      // Recompute Sharpe for display period
+      const wkR = [];
+      for (let i = 1; i < res.eqStrat.length; i++) {
+        wkR.push(res.eqStrat[i].value / res.eqStrat[i - 1].value - 1);
+      }
+      const avg = wkR.reduce((a, b) => a + b, 0) / wkR.length;
+      const std = Math.sqrt(wkR.reduce((a, b) => a + (b - avg) ** 2, 0) / wkR.length);
+      res.kpi.sharpe = std > 0 ? (avg / std) * Math.sqrt(52) : 0;
+
+      // Filter trades to display period only
+      res.trades = res.trades.filter(t => t.date >= STATE.displayCutoff);
+    }
+  }
+
+  STATE.results[key] = res;
+  STATE._currentData = data;
+
+  renderKPIs(res, key);
+  renderPriceChart(data, res, key);
+  renderEquityChart(res);
+  renderDDChart(res);
+  renderTradeLog(res);
+  renderStatusBanner(fullData, res, key);
+  buildCrossAsset();
+}
+
+function renderStatusBanner(data, res, key) {
+  const banner = document.getElementById('statusBanner');
+  const lastPrice = data[data.length - 1].close;
+  const lastMA = res.sma50[data.length - 1];
+  const above = lastPrice > lastMA;
+
+  if (lastMA) {
+    banner.className = `status-banner show ${above ? 'bull-s' : 'bear-s'}`;
+    const pct = ((lastPrice - lastMA) / lastMA * 100).toFixed(1);
+    banner.innerHTML = `<strong>${key} — ${above ? '🟢 BULL' : '🔴 BEAR'} REGIME</strong> &nbsp;|&nbsp; `
+      + `Price $${lastPrice.toLocaleString()} &nbsp;|&nbsp; 50W SMA $${lastMA.toLocaleString(undefined,{maximumFractionDigits:0})} &nbsp;|&nbsp; `
+      + `${pct}% ${above ? 'above' : 'below'} &nbsp;|&nbsp; `
+      + `Strategy: <strong>${res.kpi.inPosition ? 'LONG' : 'CASH'}</strong>`;
+  } else {
+    banner.className = 'status-banner';
+  }
+}
+
+function renderKPIs(res, key) {
+  const k = res.kpi;
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi"><div class="kpi-l">Strategy Return</div>
+      <div class="kpi-v ${k.stratReturn>=0?'pos':'neg'}">${k.stratReturn>=0?'+':''}${k.stratReturn.toFixed(1)}%</div>
+      <div class="kpi-s">CAGR ${k.stratCAGR.toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-l">Buy & Hold</div>
+      <div class="kpi-v ${k.bhReturn>=0?'pos':'neg'}">${k.bhReturn>=0?'+':''}${k.bhReturn.toFixed(1)}%</div>
+      <div class="kpi-s">CAGR ${k.bhCAGR.toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-l">Strategy Max DD</div>
+      <div class="kpi-v neg">${k.stratMaxDD.toFixed(1)}%</div>
+      <div class="kpi-s">B&H: ${k.bhMaxDD.toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-l">Sharpe (ann.)</div>
+      <div class="kpi-v ${k.sharpe>=1?'pos':k.sharpe>=0.5?'gld':'neg'}">${k.sharpe.toFixed(2)}</div>
+      <div class="kpi-s">Weekly returns</div></div>
+    <div class="kpi"><div class="kpi-l">Win Rate</div>
+      <div class="kpi-v gld">${k.winRate.toFixed(0)}%</div>
+      <div class="kpi-s">${k.wins}W / ${k.losses}L</div></div>
+    <div class="kpi"><div class="kpi-l">Round Trips</div>
+      <div class="kpi-v blu">${k.roundTrips}</div>
+      <div class="kpi-s">${k.nTrades} signals total</div></div>
+    <div class="kpi"><div class="kpi-l">Strategy Final</div>
+      <div class="kpi-v pos">$${k.stratFinal.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+      <div class="kpi-s">B&H $${k.bhFinal.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+    <div class="kpi"><div class="kpi-l">Status</div>
+      <div class="kpi-v ${k.inPosition?'pos':'neg'}">${k.inPosition?'LONG':'CASH'}</div>
+      <div class="kpi-s">${document.getElementById('dateRange').value === 'all' ? 'Full history' : document.getElementById('dateRange').value + 'Y window'} · ${(parseFloat(document.getElementById('txCost').value)).toFixed(1)}% tx</div></div>
+  `;
+  document.getElementById('priceTitle').textContent = `${key}/USD — 50W & 200W SMA`;
+}
+
+function renderPriceChart(data, res, key) {
+  if (STATE.charts.price) STATE.charts.price.destroy();
+  const si = res.startIdx;
+  let d = data.slice(si), s50 = res.sma50.slice(si), s200 = res.sma200.slice(si);
+
+  // Trim to display period if date range filter active
+  if (STATE.displayCutoff) {
+    const ci = d.findIndex(x => x.date >= STATE.displayCutoff);
+    if (ci > 0) { d = d.slice(ci); s50 = s50.slice(ci); s200 = s200.slice(ci); }
+  }
+
+  const labels = d.map(x => x.date);
+
+  // Rebuild zones for trimmed data range
+  const trimStart = data.findIndex(x => x.date === d[0]?.date);
+  const trimZones = [];
+  if (trimStart >= 0) {
+    let cur = null;
+    for (let i = 0; i < d.length; i++) {
+      const gi = trimStart + i;
+      if (gi >= res.sma50.length || res.sma50[gi] === null) continue;
+      const t = data[gi].close > res.sma50[gi] ? 'bull' : 'bear';
+      if (!cur || cur.type !== t) {
+        if (cur) { cur.end = i; trimZones.push(cur); }
+        cur = { type: t, start: i, end: i };
+      } else { cur.end = i; }
+    }
+    if (cur) { cur.end = d.length - 1; trimZones.push(cur); }
+  }
+
+  const regPlugin = {
+    id: 'reg',
+    beforeDraw: (chart) => {
+      const ctx = chart.ctx, xs = chart.scales.x, ys = chart.scales.y;
+      trimZones.forEach(z => {
+        const x1 = xs.getPixelForValue(z.start), x2 = xs.getPixelForValue(z.end);
+        ctx.fillStyle = z.type === 'bull' ? 'rgba(13,150,104,.04)' : 'rgba(214,48,49,.04)';
+        ctx.fillRect(x1, ys.top, x2 - x1, ys.bottom - ys.top);
+      });
+    }
+  };
+
+  STATE.charts.price = new Chart(document.getElementById('priceChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: key, data: d.map(x => x.close), borderColor: '#1a1d26', borderWidth: 1.4, pointRadius: 0, tension: .1 },
+        { label: '50W', data: s50, borderColor: '#d48806', borderWidth: 1.3, borderDash: [5, 3], pointRadius: 0, tension: .1 },
+        { label: '200W', data: s200, borderColor: '#d63031', borderWidth: 1.3, borderDash: [3, 3], pointRadius: 0, tension: .1 }
+      ]
+    },
+    options: chartOpts('log', v => '$' + v.toLocaleString()),
+    plugins: [regPlugin]
+  });
+}
+
+function renderEquityChart(res) {
+  if (STATE.charts.eq) STATE.charts.eq.destroy();
+  STATE.charts.eq = new Chart(document.getElementById('eqChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: res.eqStrat.map(e => e.date),
+      datasets: [
+        { label: 'Strategy', data: res.eqStrat.map(e => e.value), borderColor: '#0d9668', borderWidth: 1.4, pointRadius: 0, tension: .1, fill: { target: 'origin', above: 'rgba(13,150,104,.03)' } },
+        { label: 'Buy & Hold', data: res.eqBH.map(e => e.value), borderColor: '#9098a8', borderWidth: 1.1, borderDash: [4, 3], pointRadius: 0, tension: .1 }
+      ]
+    },
+    options: chartOpts('logarithmic', v => '$' + v.toLocaleString())
+  });
+}
+
+function renderDDChart(res) {
+  if (STATE.charts.dd) STATE.charts.dd.destroy();
+  STATE.charts.dd = new Chart(document.getElementById('ddChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: res.stratDD.series.map(d => d.date),
+      datasets: [
+        { label: 'Strategy', data: res.stratDD.series.map(d => d.dd * 100), borderColor: '#0d9668', borderWidth: 1.2, pointRadius: 0, tension: .1 },
+        { label: 'Buy & Hold', data: res.bhDD.series.map(d => d.dd * 100), borderColor: '#d63031', borderWidth: 1.1, borderDash: [4, 3], pointRadius: 0, tension: .1, fill: { target: 'origin', above: 'rgba(214,48,49,.04)' } }
+      ]
+    },
+    options: chartOpts('linear', v => v.toFixed(0) + '%')
+  });
+}
+
+function chartOpts(yType, tickCb) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: { ticks: { color: '#9098a8', font: { size: 9, family: 'IBM Plex Mono' }, maxTicksLimit: 16, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,.04)' } },
+      y: { type: yType, ticks: { color: '#9098a8', font: { size: 9, family: 'IBM Plex Mono' }, callback: tickCb }, grid: { color: 'rgba(0,0,0,.04)' } }
+    },
+    plugins: {
+      legend: { labels: { color: '#5a6070', font: { size: 10 }, boxWidth: 14, boxHeight: 2 } },
+      tooltip: { backgroundColor: '#fff', titleColor: '#1a1d26', bodyColor: '#5a6070', borderColor: '#e4e7ed', borderWidth: 1,
+        titleFont: { family: 'IBM Plex Mono', size: 11 }, bodyFont: { family: 'IBM Plex Mono', size: 11 },
+        callbacks: { label: c => `${c.dataset.label}: ${typeof c.parsed.y === 'number' ? tickCb(c.parsed.y) : c.parsed.y}` }
+      }
+    }
+  };
+}
+
+function renderTradeLog(res) {
+  const tbody = document.getElementById('tBody');
+  let cum = 0;
+  tbody.innerHTML = res.trades.map((t, i) => {
+    if (t.type === 'SELL') cum += t.ret || 0;
+    const rc = t.ret > 0 ? 'pos' : t.ret < 0 ? 'neg' : '';
+    const isRecent = new Date(t.date) > new Date(Date.now() - 180 * 864e5);
+    return `<tr class="${isRecent ? 'hl' : ''}">
+      <td>${i + 1}</td>
+      <td><span class="tag ${t.type === 'BUY' ? 'tag-b' : 'tag-s'}">${t.type}</span></td>
+      <td>${t.date}</td>
+      <td>$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+      <td>$${t.ma50 ? t.ma50.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</td>
+      <td>${t.hold != null ? t.hold + 'w' : '—'}</td>
+      <td class="${rc}">${t.ret != null ? (t.ret * 100).toFixed(1) + '%' : '—'}${t.open ? ' <span class="tag tag-o">OPEN</span>' : ''}</td>
+      <td>${t.type === 'SELL' ? (cum * 100).toFixed(1) + '%' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildCrossAsset() {
+  const grid = document.getElementById('xaGrid');
+  const keys = Object.keys(STATE.assets);
+  const cw = parseInt(document.getElementById('confirmWeeks').value);
+  const tc = parseFloat(document.getElementById('txCost').value) / 100;
+
+  grid.innerHTML = keys.map(k => {
+    // Always use full data for cross-asset (ignore date range filter)
+    const r = backtest(STATE.assets[k], cw, tc);
+    if (!r) return '';
+    const kp = r.kpi;
+    const data = STATE.assets[k];
+    const lastP = data[data.length - 1].close;
+    const lastMA = r.sma50[data.length - 1];
+    const regime = lastMA ? (lastP > lastMA ? '🟢 Bull' : '🔴 Bear') : '—';
+
+    return `<div class="xa-card">
+      <h4>${k} <span style="font-size:11px;font-weight:500;color:var(--tx2)">${regime}</span></h4>
+      <div class="xa-row"><span class="xa-k">Strategy CAGR</span><span class="xa-v ${kp.stratCAGR>=0?'pos':'neg'}">${kp.stratCAGR.toFixed(1)}%</span></div>
+      <div class="xa-row"><span class="xa-k">B&H CAGR</span><span class="xa-v">${kp.bhCAGR.toFixed(1)}%</span></div>
+      <div class="xa-row"><span class="xa-k">Strategy Max DD</span><span class="xa-v neg">${kp.stratMaxDD.toFixed(1)}%</span></div>
+      <div class="xa-row"><span class="xa-k">B&H Max DD</span><span class="xa-v neg">${kp.bhMaxDD.toFixed(1)}%</span></div>
+      <div class="xa-row"><span class="xa-k">Sharpe (ann.)</span><span class="xa-v">${kp.sharpe.toFixed(2)}</span></div>
+      <div class="xa-row"><span class="xa-k">Win Rate</span><span class="xa-v">${kp.winRate.toFixed(0)}% (${kp.roundTrips} trades)</span></div>
+      <div class="xa-row"><span class="xa-k">DD Improvement</span><span class="xa-v pos">${(kp.bhMaxDD - kp.stratMaxDD).toFixed(1)}pp</span></div>
+      <div class="xa-row"><span class="xa-k">Data Range</span><span class="xa-v" style="font-size:10px">${data[0].date} → ${data[data.length-1].date}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// BOOT — check for baked data
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  if (BAKED_DATA && typeof BAKED_DATA === 'object') {
+    for (const [key, arr] of Object.entries(BAKED_DATA)) {
+      STATE.assets[key] = arr;
+    }
+    initDashboard(Object.keys(STATE.assets));
+  }
+});
+</script>
+</body>
+</html>
